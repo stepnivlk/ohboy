@@ -1,44 +1,84 @@
 use crate::{
-    executors::{Executor, NullFlagger, Worker},
-    values::Value,
-    LoadByteSource, LoadByteTarget, CPU,
+    instruction::{Instr, Operand, PostOp},
+    registers::{Reg16Kind, Reg8Kind},
+    CPU,
 };
 
-struct LdWorker;
+pub fn ld(cpu: &mut CPU, mut instr: Instr) -> Option<Instr> {
+    let rhs = match &instr.rhs {
+        Some(Operand::Reg8(reg)) => match reg {
+            Reg8Kind::A => cpu.registers.a,
+            Reg8Kind::B => cpu.registers.b,
+            Reg8Kind::C => cpu.registers.c,
+            Reg8Kind::D => cpu.registers.d,
+            Reg8Kind::E => cpu.registers.e,
+            Reg8Kind::H => cpu.registers.h,
+            Reg8Kind::L => cpu.registers.l,
+        },
+        Some(Operand::Reg16Indir(reg)) => cpu.read_at_reg_16(reg),
+        Some(Operand::U8) => cpu.read_next_byte(),
+        _ => panic!("[{:X} | {}] unsupported operand {:?}", instr.pos, instr.tag, instr.rhs),
+    };
 
-impl Worker for LdWorker {
-    type V = (u8, LoadByteTarget, LoadByteSource);
-    type D = ();
+    let lhs = match &instr.lhs {
+        Some(Operand::Reg8(reg)) => {
+            match reg {
+                Reg8Kind::A => cpu.registers.a = rhs,
+                Reg8Kind::B => cpu.registers.b = rhs,
+                Reg8Kind::C => cpu.registers.c = rhs,
+                Reg8Kind::D => cpu.registers.d = rhs,
+                Reg8Kind::E => cpu.registers.e = rhs,
+                Reg8Kind::H => cpu.registers.h = rhs,
+                Reg8Kind::L => cpu.registers.l = rhs,
+            };
 
-    fn run(&self, cpu: &mut CPU, value: Self::V) -> Self::D {
-        let (source_value, target, source) = value;
+            rhs as u16
+        },
+        Some(Operand::Reg16Indir(Reg16Kind::HL)) => {
+            let addr = cpu.registers.get_hl();
 
-        match target {
-            LoadByteTarget::A => cpu.registers.a = source_value,
-            LoadByteTarget::B => cpu.registers.b = source_value,
-            LoadByteTarget::C => cpu.registers.c = source_value,
-            LoadByteTarget::D => cpu.registers.d = source_value,
-            LoadByteTarget::E => cpu.registers.e = source_value,
-            LoadByteTarget::H => cpu.registers.h = source_value,
-            LoadByteTarget::L => cpu.registers.l = source_value,
-            LoadByteTarget::HL => {
-                cpu.bus.write_byte(cpu.registers.get_hl(), source_value)
+            cpu.bus.write_byte(addr, rhs);
+
+            addr
+        },
+        Some(Operand::Reg8Indir(Reg8Kind::C, offset)) => {
+            let addr = offset + (cpu.registers.c as u16);
+
+            cpu.bus.write_byte(addr, rhs);
+
+            addr
+        },
+        Some(Operand::U8Indir(offset)) => {
+            let addr = offset + (cpu.read_next_byte() as u16);
+
+            cpu.bus.write_byte(addr, rhs);
+
+            addr
+        },
+        _ => panic!("{}: unsupported operand {:?}", instr, instr.lhs),
+    };
+
+    instr.trace((lhs, rhs as u16));
+
+    match &instr.rhs {
+        Some(Operand::U8) => cpu.pc.add(2),
+        _ => {
+            match &instr.lhs {
+                Some(Operand::U8Indir(_)) => {
+                    cpu.pc.add(2);
+                },
+                _ => cpu.pc.add(1),
             }
-        };
+        },
+    };
 
-        match source {
-            LoadByteSource::D8 => cpu.pc = cpu.pc.wrapping_add(2),
-            _ => cpu.pc = cpu.pc.wrapping_add(1),
-        };
-    }
-}
+    match &instr.post_op {
+        Some(PostOp::Dec(Reg16Kind::HL)) => {
+            cpu.registers.set_hl(cpu.registers.get_hl().wrapping_sub(1))
+        }
+        None => {}
+        _ => panic!("{}: unsupported post_op {:?}", instr, instr.post_op),
+    };
 
-pub fn ld(cpu: &mut CPU, target: LoadByteTarget, source: LoadByteSource) {
-    Executor {
-        cpu,
-        worker: LdWorker,
-        flagger: NullFlagger,
-        value: Value((target, source)),
-    }
-    .run();
+    Some(instr)
 }

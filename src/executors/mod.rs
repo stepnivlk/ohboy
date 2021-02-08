@@ -1,75 +1,73 @@
 mod adds;
 mod and;
 mod call;
-mod halt;
 mod jumps;
 mod lds;
-mod nop;
 mod or;
 mod stack;
 mod subs;
 mod xor;
 
-pub mod values;
-
-use crate::CPU;
-use values::ValueGetter;
+use crate::{
+    instruction::{CondKind, Operand},
+    registers::{Reg16Kind, Reg8Kind, Registers},
+    CPU,
+};
 
 pub use adds::{adc, add, add_hl};
 pub use and::and;
 pub use call::{call, ret};
-pub use halt::halt;
-pub use jumps::jp;
+pub use jumps::{jp, jr};
 pub use lds::ld;
-pub use nop::nop;
 pub use or::or;
 pub use stack::{pop, push};
 pub use subs::{sbc, sub};
 pub use xor::xor;
 
-trait Worker {
-    type V;
-    type D;
-
-    fn run(&self, cpu: &mut CPU, value: Self::V) -> Self::D;
+pub fn should_jump(cpu: &CPU, op: Operand) -> bool {
+    match op {
+        Operand::Cond(CondKind::Always) => true,
+        Operand::Cond(CondKind::NotCarry) => !cpu.registers.f.carry,
+        Operand::Cond(CondKind::NotZero) => !cpu.registers.f.zero,
+        Operand::Cond(CondKind::Carry) => cpu.registers.f.carry,
+        Operand::Cond(CondKind::Zero) => cpu.registers.f.zero,
+        _ => panic!("Mismatched operand {:?}", op),
+    }
 }
 
-trait Flagger {
-    type D;
-
-    fn run(&self, cpu: &mut CPU, data: Self::D);
+pub fn op_to_u8_reg(op: &Operand, registers: &Registers) -> u8 {
+    match op {
+        Operand::Reg8(Reg8Kind::A) => registers.a,
+        Operand::Reg8(Reg8Kind::B) => registers.b,
+        Operand::Reg8(Reg8Kind::C) => registers.c,
+        Operand::Reg8(Reg8Kind::D) => registers.d,
+        Operand::Reg8(Reg8Kind::E) => registers.e,
+        Operand::Reg8(Reg8Kind::H) => registers.h,
+        Operand::Reg8(Reg8Kind::L) => registers.l,
+        _ => panic!("Unsupported operand: {:?}", op),
+    }
 }
 
-struct NullFlagger;
-
-impl Flagger for NullFlagger {
-    type D = ();
-
-    fn run(&self, _cpu: &mut CPU, _data: Self::D) {}
+pub fn op_to_u16_reg(op: &Operand, registers: &Registers) -> u16 {
+    match op {
+        Operand::Reg16(Reg16Kind::SP) => {
+            panic!("not implemented");
+        }
+        Operand::Reg16(Reg16Kind::BC) => registers.get_bc(),
+        Operand::Reg16(Reg16Kind::DE) => registers.get_de(),
+        Operand::Reg16(Reg16Kind::HL) => registers.get_hl(),
+        _ => panic!("Unsupported operand: {:?}", op),
+    }
 }
 
-struct Executor<'a, V, D, W, F, VG>
-where
-    W: Worker<V = V, D = D>,
-    F: Flagger<D = D>,
-    VG: ValueGetter<V = V>,
-{
-    cpu: &'a mut CPU,
-    worker: W,
-    flagger: F,
-    value: VG,
-}
-
-impl<'a, V, D, W, F, VG> Executor<'a, V, D, W, F, VG>
-where
-    W: Worker<V = V, D = D>,
-    F: Flagger<D = D>,
-    VG: ValueGetter<V = V>,
-{
-    fn run(&mut self) {
-        let value = self.value.get_one(&self.cpu);
-        let data = self.worker.run(self.cpu, value);
-
-        self.flagger.run(self.cpu, data);
+pub fn op_to_u16_reg_w(op: &Operand, registers: &mut Registers, val: u16) {
+    match op {
+        Operand::Reg16(Reg16Kind::SP) => {
+            panic!("not implemented");
+        }
+        Operand::Reg16(Reg16Kind::BC) => registers.set_bc(val),
+        Operand::Reg16(Reg16Kind::DE) => registers.set_de(val),
+        Operand::Reg16(Reg16Kind::HL) => registers.set_hl(val),
+        _ => panic!("Unsupported operand: {:?}", op),
     }
 }

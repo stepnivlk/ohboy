@@ -1,76 +1,40 @@
 use crate::{
-    executors::{Executor, NullFlagger, Worker},
-    values::Value,
-    StackTarget, CPU,
+    executors::{op_to_u16_reg, op_to_u16_reg_w},
+    instruction::Instr,
+    CPU,
 };
 
-struct PushWorker;
+pub fn push(cpu: &mut CPU, instr: Instr) -> Option<Instr> {
+    let val = op_to_u16_reg(&instr.rhs?, &cpu.registers);
 
-impl Worker for PushWorker {
-    type V = (u16, StackTarget);
-    type D = ();
+    let hi = ((val & 0xFF00) >> 8) as u8;
+    let lo = ((val & 0xFF) >> 8) as u8;
 
-    fn run(&self, cpu: &mut CPU, value: Self::V) -> Self::D {
-        let (data, _) = value;
+    cpu.sp = cpu.sp.wrapping_sub(1);
+    cpu.bus.write_byte(cpu.sp, hi);
 
-        let hi = ((data & 0xFF00) >> 8) as u8;
-        let lo = ((data & 0xFF) >> 8) as u8;
+    cpu.sp = cpu.sp.wrapping_sub(1);
+    cpu.bus.write_byte(cpu.sp, lo);
 
-        cpu.sp = cpu.sp.wrapping_sub(1);
-        cpu.bus.write_byte(cpu.sp, hi);
+    cpu.pc.add(1);
 
-        cpu.sp = cpu.sp.wrapping_sub(1);
-        cpu.bus.write_byte(cpu.sp, lo);
-
-        cpu.pc = cpu.pc.wrapping_add(1);
-    }
+    Some(instr)
 }
 
-struct PopWorker;
+pub fn pop(cpu: &mut CPU, instr: Instr) -> Option<Instr> {
+    let lo = cpu.bus.read_byte(cpu.sp) as u16;
+    cpu.sp = cpu.sp.wrapping_add(1);
 
-impl Worker for PopWorker {
-    type V = (u16, StackTarget);
-    type D = ();
+    let hi = cpu.bus.read_byte(cpu.sp) as u16;
+    cpu.sp = cpu.sp.wrapping_add(1);
 
-    fn run(&self, cpu: &mut CPU, value: Self::V) -> Self::D {
-        let (_, target) = value;
+    cpu.pc.add(1);
 
-        let lo = cpu.bus.read_byte(cpu.sp) as u16;
-        cpu.sp = cpu.sp.wrapping_add(1);
+    let data = (hi << 8) | lo;
 
-        let hi = cpu.bus.read_byte(cpu.sp) as u16;
-        cpu.sp = cpu.sp.wrapping_add(1);
+    op_to_u16_reg_w(&instr.rhs?, &mut cpu.registers, data);
 
-        cpu.pc = cpu.pc.wrapping_add(1);
+    cpu.pc.add(1);
 
-        let data = (hi << 8) | lo;
-
-        match target {
-            StackTarget::BC => cpu.registers.set_bc(data),
-            StackTarget::DE => cpu.registers.set_de(data),
-            StackTarget::HL => cpu.registers.set_hl(data),
-        }
-
-        cpu.pc = cpu.pc.wrapping_add(1);
-    }
-}
-
-pub fn push(cpu: &mut CPU, value: StackTarget) {
-    Executor {
-        cpu,
-        worker: PushWorker,
-        flagger: NullFlagger,
-        value: Value(value),
-    }
-    .run();
-}
-
-pub fn pop(cpu: &mut CPU, value: StackTarget) {
-    Executor {
-        cpu,
-        worker: PopWorker,
-        flagger: NullFlagger,
-        value: Value(value),
-    }
-    .run();
+    Some(instr)
 }

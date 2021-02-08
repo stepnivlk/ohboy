@@ -2,11 +2,11 @@ use std::convert::TryInto;
 
 const BOOT_ROM_START: usize = 0x00;
 const BOOT_ROM_END: usize = 0xFF;
-const BOOT_ROM_SIZE: usize = BOOT_ROM_END - BOOT_ROM_START + 1;
+pub const BOOT_ROM_SIZE: usize = BOOT_ROM_END - BOOT_ROM_START + 1;
 
 const ROM_BANK_0_START: usize = 0x000;
 const ROM_BANK_0_END: usize = 0x3FFF;
-const ROM_BANK_0_SIZE: usize = ROM_BANK_0_END - ROM_BANK_0_START + 1;
+pub const ROM_BANK_0_SIZE: usize = ROM_BANK_0_END - ROM_BANK_0_START + 1;
 
 pub struct MemoryBus {
     memory: [u8; 0xFFFF],

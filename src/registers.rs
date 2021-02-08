@@ -48,7 +48,7 @@ impl std::convert::From<u8> for FlagsRegister {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub enum Reg8Kind {
     A,
     B,
@@ -59,7 +59,7 @@ pub enum Reg8Kind {
     L,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub enum Reg16Kind {
     BC,
     DE,
@@ -93,8 +93,8 @@ impl Registers {
         }
     }
 
-    pub fn get(&self, reg: Reg8Kind) -> u8 {
-        match reg {
+    pub fn get_8(&self, kind: &Reg8Kind) -> u8 {
+        match kind {
             Reg8Kind::A => self.a,
             Reg8Kind::B => self.b,
             Reg8Kind::C => self.c,
@@ -105,12 +105,25 @@ impl Registers {
         }
     }
 
-    pub fn get_word(&self, reg: Reg16Kind) -> u16 {
-        match reg {
-            Reg16Kind::SP => 0xFFFF,
+    pub fn get_16(&self, kind: &Reg16Kind) -> u16 {
+        match kind {
+            Reg16Kind::SP => {
+                panic!("not implemented");
+            }
             Reg16Kind::BC => self.get_bc(),
             Reg16Kind::DE => self.get_de(),
             Reg16Kind::HL => self.get_hl(),
+        }
+    }
+
+    pub fn set_16(&mut self, kind: &Reg16Kind, val: u16) {
+        match kind {
+            Reg16Kind::SP => {
+                panic!("not implemented");
+            }
+            Reg16Kind::BC => self.set_bc(val),
+            Reg16Kind::DE => self.set_de(val),
+            Reg16Kind::HL => self.set_hl(val),
         }
     }
 
@@ -128,8 +141,8 @@ impl Registers {
         reg_val.overflowing_add(val)
     }
 
-    pub fn set(&self, reg: Reg8Kind, val: u8) {
-        match reg {
+    pub fn set_8(&mut self, kind: &Reg8Kind, val: u8) {
+        match kind {
             Reg8Kind::A => self.a = val,
             Reg8Kind::B => self.b = val,
             Reg8Kind::C => self.c = val,

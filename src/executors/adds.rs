@@ -1,96 +1,11 @@
 use crate::{
-    executors::{Executor, Flagger, Worker},
-    values::Value,
-    ADDHLTarget, ArithmeticTarget, CPU,
-    registers::{Reg8Kind, Reg16Kind},
+    executors::{op_to_u16_reg, op_to_u8_reg},
+    instruction::Instr,
+    CPU,
 };
 
-type AddU8Data = (u8, bool);
-
-struct AddFlagger;
-
-impl Flagger for AddFlagger {
-    type D = AddU8Data;
-
-    fn run(&self, cpu: &mut CPU, data: Self::D) {
-        let (value, carry) = data;
-
-        cpu.registers.f.zero = value == 0;
-        cpu.registers.f.subtract = false;
-        cpu.registers.f.half_carry = value > 0xF;
-        cpu.registers.f.carry = carry;
-    }
-}
-
-struct AddWorker;
-
-impl Worker for AddWorker {
-    type V = u8;
-    type D = AddU8Data;
-
-    fn run(&self, cpu: &mut CPU, value: Self::V) -> Self::D {
-        let (new_value, carry) = cpu.registers.a.overflowing_add(value);
-
-        cpu.registers.a = new_value;
-        cpu.pc = cpu.pc.wrapping_add(1);
-
-        (new_value, carry)
-    }
-}
-
-struct AdcWorker;
-
-impl Worker for AdcWorker {
-    type V = u8;
-    type D = AddU8Data;
-
-    fn run(&self, cpu: &mut CPU, value: Self::V) -> Self::D {
-        let additinal_carry = if cpu.registers.f.carry { 1 } else { 0 };
-        let (mid_value, mid_carry) = cpu.registers.a.overflowing_add(value);
-        let (new_value, carry) = mid_value.overflowing_add(additinal_carry);
-
-        cpu.registers.a = new_value;
-        cpu.pc = cpu.pc.wrapping_add(1);
-
-        (new_value, mid_carry || carry)
-    }
-}
-
-type AddU16Data = (u16, bool);
-
-struct AddHlWorker;
-
-impl Worker for AddHlWorker {
-    type V = u16;
-    type D = AddU16Data;
-
-    fn run(&self, cpu: &mut CPU, value: Self::V) -> Self::D {
-        let curr_hl = cpu.registers.get_hl();
-        let (new_value, carry) = curr_hl.overflowing_add(value);
-
-        cpu.registers.set_hl(new_value);
-        cpu.pc = cpu.pc.wrapping_add(1);
-
-        (new_value, carry)
-    }
-}
-
-struct AddHlFlagger;
-
-impl Flagger for AddHlFlagger {
-    type D = AddU16Data;
-
-    fn run(&self, cpu: &mut CPU, data: Self::D) {
-        let (value, carry) = data;
-
-        cpu.registers.f.carry = carry;
-        cpu.registers.f.subtract = false;
-        cpu.registers.f.half_carry = value > 0xFF;
-    }
-}
-
-pub fn add(cpu: &mut CPU, from: Reg8Kind) {
-    let val = cpu.registers.get(from);
+pub fn add(cpu: &mut CPU, instr: Instr) -> Option<Instr> {
+    let val = op_to_u8_reg(&instr.rhs?, &cpu.registers);
     let (new_val, carry) = cpu.registers.a.overflowing_add(val);
 
     cpu.registers.f.zero = val == 0;
@@ -101,10 +16,12 @@ pub fn add(cpu: &mut CPU, from: Reg8Kind) {
 
     cpu.registers.a = new_val;
     cpu.pc.add(1);
+
+    Some(instr)
 }
 
-pub fn adc(cpu: &mut CPU, from: Reg8Kind) {
-    let val = cpu.registers.get(from);
+pub fn adc(cpu: &mut CPU, instr: Instr) -> Option<Instr> {
+    let val = op_to_u8_reg(&instr.rhs?, &cpu.registers);
     let additinal_carry = if cpu.registers.f.carry { 1 } else { 0 };
     let (mid_value, mid_carry) = cpu.registers.a.overflowing_add(val);
     let (new_value, carry) = mid_value.overflowing_add(additinal_carry);
@@ -118,11 +35,11 @@ pub fn adc(cpu: &mut CPU, from: Reg8Kind) {
     cpu.registers.a = new_value;
     cpu.pc.add(1);
 
+    Some(instr)
 }
 
-pub fn add_hl(cpu: &mut CPU, from: Reg16Kind) {
-    let val = cpu.registers.get_word(from);
-
+pub fn add_hl(cpu: &mut CPU, instr: Instr) -> Option<Instr> {
+    let val = op_to_u16_reg(&instr.rhs?, &cpu.registers);
     let curr_hl = cpu.registers.get_hl();
     let (new_value, carry) = curr_hl.overflowing_add(val);
 
@@ -133,6 +50,8 @@ pub fn add_hl(cpu: &mut CPU, from: Reg16Kind) {
 
     cpu.registers.set_hl(new_value);
     cpu.pc.add(1);
+
+    Some(instr)
 }
 
 #[cfg(test)]
@@ -140,19 +59,22 @@ mod tests {
     use super::*;
     use crate::{Registers, CPU};
 
+    fn cpu(registers: Registers) -> CPU {
+        CPU::new(vec![], vec![], Some(registers))
+    }
+
     #[test]
     fn add_increments_pc() {
         let mut registers = Registers::new();
         registers.a = 0x00;
-        registers.b = 0x00;
 
-        let mut cpu = CPU::new(Some(registers));
+        let mut cpu = cpu(registers);
 
-        assert_eq!(cpu.pc, 0);
+        assert_eq!(cpu.pc.get(), 0);
 
-        add(&mut cpu, ArithmeticTarget::B);
+        add(&mut cpu, Reg8Kind::B);
 
-        assert_eq!(cpu.pc, 1);
+        assert_eq!(cpu.pc.get(), 1);
     }
 
     #[test]
@@ -161,9 +83,9 @@ mod tests {
         registers.a = 0x01;
         registers.c = 0x02;
 
-        let mut cpu = CPU::new(Some(registers));
+        let mut cpu = cpu(registers);
 
-        add(&mut cpu, ArithmeticTarget::C);
+        add(&mut cpu, Reg8Kind::C);
 
         assert_eq!(cpu.registers.a, 0x03);
 
@@ -178,9 +100,9 @@ mod tests {
         let mut registers = Registers::new();
         registers.a = 0x02;
 
-        let mut cpu = CPU::new(Some(registers));
+        let mut cpu = cpu(registers);
 
-        add(&mut cpu, ArithmeticTarget::A);
+        add(&mut cpu, Reg8Kind::A);
 
         assert_eq!(cpu.registers.a, 0x04);
     }
@@ -191,9 +113,9 @@ mod tests {
         registers.a = 0b1111_1111;
         registers.d = 0b1;
 
-        let mut cpu = CPU::new(Some(registers));
+        let mut cpu = cpu(registers);
 
-        add(&mut cpu, ArithmeticTarget::D);
+        add(&mut cpu, Reg8Kind::D);
 
         assert_eq!(cpu.registers.a, 0);
 
@@ -207,9 +129,9 @@ mod tests {
         registers.a = 0b0000_1111;
         registers.e = 0b1;
 
-        let mut cpu = CPU::new(Some(registers));
+        let mut cpu = cpu(registers);
 
-        add(&mut cpu, ArithmeticTarget::E);
+        add(&mut cpu, Reg8Kind::E);
 
         assert_eq!(cpu.registers.a, 0b0001_0000);
 
@@ -222,13 +144,13 @@ mod tests {
         registers.a = 0x00;
         registers.b = 0x00;
 
-        let mut cpu = CPU::new(Some(registers));
+        let mut cpu = cpu(registers);
 
-        assert_eq!(cpu.pc, 0);
+        assert_eq!(cpu.pc.get(), 0);
 
-        adc(&mut cpu, ArithmeticTarget::B);
+        adc(&mut cpu, Reg8Kind::B);
 
-        assert_eq!(cpu.pc, 1);
+        assert_eq!(cpu.pc.get(), 1);
     }
 
     #[test]
@@ -237,9 +159,9 @@ mod tests {
         registers.a = 0x01;
         registers.b = 0x02;
 
-        let mut cpu = CPU::new(Some(registers));
+        let mut cpu = cpu(registers);
 
-        adc(&mut cpu, ArithmeticTarget::B);
+        adc(&mut cpu, Reg8Kind::B);
 
         assert_eq!(cpu.registers.a, 0x03);
 
@@ -255,9 +177,9 @@ mod tests {
         registers.a = 0b0000_1111;
         registers.e = 0b1;
 
-        let mut cpu = CPU::new(Some(registers));
+        let mut cpu = cpu(registers);
 
-        adc(&mut cpu, ArithmeticTarget::E);
+        adc(&mut cpu, Reg8Kind::E);
 
         assert_eq!(cpu.registers.a, 0b0001_0000);
 
@@ -270,9 +192,9 @@ mod tests {
         registers.a = 0b1111_1111;
         registers.d = 0b1;
 
-        let mut cpu = CPU::new(Some(registers));
+        let mut cpu = cpu(registers);
 
-        adc(&mut cpu, ArithmeticTarget::D);
+        adc(&mut cpu, Reg8Kind::D);
 
         assert_eq!(cpu.registers.a, 0);
 
@@ -289,9 +211,9 @@ mod tests {
         // 0 + 1
         registers.f.carry = true;
 
-        let mut cpu = CPU::new(Some(registers));
+        let mut cpu = cpu(registers);
 
-        adc(&mut cpu, ArithmeticTarget::D);
+        adc(&mut cpu, Reg8Kind::D);
 
         assert_eq!(cpu.registers.a, 1);
 
@@ -304,13 +226,13 @@ mod tests {
         registers.set_hl(0x00);
         registers.set_bc(0x00);
 
-        let mut cpu = CPU::new(Some(registers));
+        let mut cpu = cpu(registers);
 
-        assert_eq!(cpu.pc, 0);
+        assert_eq!(cpu.pc.get(), 0);
 
-        add_hl(&mut cpu, ADDHLTarget::BC);
+        add_hl(&mut cpu, Reg16Kind::BC);
 
-        assert_eq!(cpu.pc, 1);
+        assert_eq!(cpu.pc.get(), 1);
     }
 
     #[test]
@@ -319,9 +241,9 @@ mod tests {
         registers.set_hl(0x00_0A);
         registers.set_de(0x00_0B);
 
-        let mut cpu = CPU::new(Some(registers));
+        let mut cpu = cpu(registers);
 
-        add_hl(&mut cpu, ADDHLTarget::DE);
+        add_hl(&mut cpu, Reg16Kind::DE);
 
         assert_eq!(cpu.registers.get_hl(), 0x15);
 
@@ -337,9 +259,9 @@ mod tests {
         registers.set_hl(0xFF_FF);
         registers.set_bc(0x00_01);
 
-        let mut cpu = CPU::new(Some(registers));
+        let mut cpu = cpu(registers);
 
-        add_hl(&mut cpu, ADDHLTarget::BC);
+        add_hl(&mut cpu, Reg16Kind::BC);
 
         assert_eq!(cpu.registers.get_hl(), 0);
 
@@ -352,9 +274,9 @@ mod tests {
         registers.set_hl(0x00_FF);
         registers.set_bc(0x00_01);
 
-        let mut cpu = CPU::new(Some(registers));
+        let mut cpu = cpu(registers);
 
-        add_hl(&mut cpu, ADDHLTarget::BC);
+        add_hl(&mut cpu, Reg16Kind::BC);
 
         assert_eq!(cpu.registers.get_hl(), 0b0000_0001_0000_0000);
 

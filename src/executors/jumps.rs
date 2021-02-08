@@ -1,58 +1,43 @@
-use crate::{
-    executors::{Executor, NullFlagger, Worker},
-    values::Value,
-    CPU,
-};
+use crate::{executors::should_jump, instruction::Instr, CPU};
 
-struct JpWorker;
+pub fn jp(cpu: &mut CPU, instr: Instr) -> Option<Instr> {
+    if !should_jump(cpu, instr.lhs?) {
+        cpu.pc.add(3);
 
-impl Worker for JpWorker {
-    type V = bool;
-    type D = ();
-
-    fn run(&self, cpu: &mut CPU, should_jump: Self::V) -> Self::D {
-        if !should_jump {
-            cpu.pc = cpu.pc.wrapping_add(3);
-
-            return;
-        }
-
-        let least_significant_byte = cpu.bus.read_byte(cpu.pc + 1) as u16;
-        let most_significant_byte = cpu.bus.read_byte(cpu.pc + 2) as u16;
-
-        let address = (most_significant_byte << 8) | least_significant_byte;
-
-        cpu.pc = address;
+        return Some(instr);
     }
-}
 
-struct JpHlWorker;
+    let lsb = cpu.bus.read_byte(cpu.pc.get() + 1) as u16;
+    let msb = cpu.bus.read_byte(cpu.pc.get() + 2) as u16;
 
-impl Worker for JpHlWorker {
-    type V = ();
-    type D = ();
+    let address = (msb << 8) | lsb;
 
-    fn run(&self, cpu: &mut CPU, _value: Self::V) -> Self::D {
-        cpu.pc = cpu.registers.get_hl();
-    }
-}
+    cpu.pc.set(address);
 
-pub fn jp(cpu: &mut CPU, should_jump: bool) {
-    Executor {
-        cpu,
-        worker: JpWorker,
-        flagger: NullFlagger,
-        value: Value(should_jump),
-    }
-    .run();
+    Some(instr)
 }
 
 pub fn jp_hl(cpu: &mut CPU) {
-    Executor {
-        cpu,
-        worker: JpHlWorker,
-        flagger: NullFlagger,
-        value: Value(()),
+    cpu.pc.set(cpu.registers.get_hl());
+}
+
+pub fn jr(cpu: &mut CPU, instr: Instr) -> Option<Instr> {
+    let next_step = cpu.pc.get().wrapping_add(2);
+
+    if !should_jump(cpu, instr.lhs?) {
+        // do not jump
+        cpu.pc.set(next_step);
+    } else {
+        let offset = cpu.read_next_byte() as i8;
+
+        let next_pc = if offset >= 0 {
+            next_step.wrapping_add(offset as u16)
+        } else {
+            next_step.wrapping_sub(offset.abs() as u16)
+        };
+
+        cpu.pc.set(next_pc);
     }
-    .run();
+
+    Some(instr)
 }

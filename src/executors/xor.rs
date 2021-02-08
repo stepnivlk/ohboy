@@ -1,47 +1,19 @@
-use crate::{
-    executors::{Executor, Flagger, Worker},
-    values::Value,
-    ArithmeticTarget, CPU,
-};
+use crate::{executors::op_to_u8_reg, instruction::Instr, CPU};
 
-struct XorFlagger;
+pub fn xor(cpu: &mut CPU, instr: Instr) -> Option<Instr> {
+    let val = op_to_u8_reg(&instr.rhs?, &cpu.registers);
 
-impl Flagger for XorFlagger {
-    type D = u8;
+    let new_value = cpu.registers.a ^ val;
 
-    fn run(&self, cpu: &mut CPU, data: Self::D) {
-        cpu.registers.f.zero = data == 0;
+    cpu.registers.f.zero = new_value == 0;
+    cpu.registers.f.subtract = false;
+    cpu.registers.f.half_carry = false;
+    cpu.registers.f.carry = false;
 
-        cpu.registers.f.subtract = false;
-        cpu.registers.f.half_carry = false;
-        cpu.registers.f.carry = false;
-    }
-}
+    cpu.registers.a = new_value;
+    cpu.pc.add(1);
 
-struct XorWorker;
-
-impl Worker for XorWorker {
-    type V = u8;
-    type D = u8;
-
-    fn run(&self, cpu: &mut CPU, value: Self::V) -> Self::D {
-        let new_value = cpu.registers.a ^ value;
-
-        cpu.registers.a = new_value;
-        cpu.pc = cpu.pc.wrapping_add(1);
-
-        new_value
-    }
-}
-
-pub fn xor(cpu: &mut CPU, register: ArithmeticTarget) {
-    Executor {
-        cpu,
-        worker: XorWorker,
-        flagger: XorFlagger,
-        value: Value(register),
-    }
-    .run();
+    Some(instr)
 }
 
 #[cfg(test)]
@@ -49,15 +21,19 @@ mod tests {
     use super::*;
     use crate::{Registers, CPU};
 
+    fn cpu(registers: Registers) -> CPU {
+        CPU::new(vec![], vec![], Some(registers))
+    }
+
     #[test]
     fn it_sets_a_register_correctly() {
         let mut registers = Registers::new();
         registers.a = 0b1000_1111;
         registers.b = 0b1010_1001;
 
-        let mut cpu = CPU::new(Some(registers));
+        let mut cpu = cpu(registers);
 
-        xor(&mut cpu, ArithmeticTarget::B);
+        xor(&mut cpu, Reg8Kind::B);
 
         assert_eq!(cpu.registers.a, 0b0010_0110);
 
@@ -70,9 +46,9 @@ mod tests {
         registers.a = 0x12;
         registers.d = 0x13;
 
-        let mut cpu = CPU::new(Some(registers));
+        let mut cpu = cpu(registers);
 
-        xor(&mut cpu, ArithmeticTarget::D);
+        xor(&mut cpu, Reg8Kind::D);
 
         assert_eq!(cpu.registers.f.zero, false);
         assert_eq!(cpu.registers.f.subtract, false);
@@ -86,9 +62,9 @@ mod tests {
         registers.a = 0x00;
         registers.c = 0x00;
 
-        let mut cpu = CPU::new(Some(registers));
+        let mut cpu = cpu(registers);
 
-        xor(&mut cpu, ArithmeticTarget::C);
+        xor(&mut cpu, Reg8Kind::C);
 
         assert_eq!(cpu.registers.a, 0x00);
 
@@ -101,12 +77,11 @@ mod tests {
         registers.a = 0x00;
         registers.d = 0x00;
 
-        let mut cpu = CPU::new(Some(registers));
+        let mut cpu = cpu(registers);
+        assert_eq!(cpu.pc.get(), 0);
 
-        assert_eq!(cpu.pc, 0);
+        xor(&mut cpu, Reg8Kind::E);
 
-        xor(&mut cpu, ArithmeticTarget::E);
-
-        assert_eq!(cpu.pc, 1);
+        assert_eq!(cpu.pc.get(), 1);
     }
 }

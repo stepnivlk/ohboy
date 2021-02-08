@@ -1,158 +1,95 @@
-use crate::{
-    executors::{Executor, Flagger, Worker},
-    values::Value,
-    ArithmeticTarget, CPU,
-};
+use crate::{executors::op_to_u8_reg, instruction::Instr, CPU};
 
-#[derive(Debug)]
-struct Sub8Data {
-    value: u8,
-    carry: bool,
-    prev_a: u8,
+pub fn sub(cpu: &mut CPU, instr: Instr) -> Option<Instr> {
+    let val = op_to_u8_reg(&instr.rhs?, &cpu.registers);
+    let a = cpu.registers.a;
+
+    let (new_value, carry) = a.overflowing_sub(val);
+
+    cpu.registers.f.zero = new_value == 0;
+    cpu.registers.f.subtract = true;
+    // TODO: Should add a carry?
+    cpu.registers.f.half_carry = (a & 0xF) < (val & 0xF);
+    cpu.registers.f.carry = carry;
+
+    cpu.registers.a = new_value;
+    cpu.pc.add(1);
+
+    Some(instr)
 }
 
-struct SubFlagger;
+pub fn sbc(cpu: &mut CPU, instr: Instr) -> Option<Instr> {
+    let val = op_to_u8_reg(&instr.rhs?, &cpu.registers);
+    let a = cpu.registers.a;
+    let additinal_carry = cpu.registers.f.carry as u8;
 
-impl Flagger for SubFlagger {
-    type D = Sub8Data;
+    let (mid_value, mid_carry) = a.overflowing_sub(val);
+    let (new_value, carry) = mid_value.overflowing_sub(additinal_carry);
 
-    fn run(&self, cpu: &mut CPU, data: Self::D) {
-        let carry = cpu.registers.f.carry as u8;
+    cpu.registers.f.zero = cpu.registers.a == 0;
+    cpu.registers.f.subtract = true;
+    cpu.registers.f.half_carry =
+        (a & 0xF) < (val & 0xF) + (cpu.registers.f.carry as u8);
+    cpu.registers.f.carry = mid_carry || carry;
 
-        cpu.registers.f.zero = cpu.registers.a == 0;
-        cpu.registers.f.subtract = true;
-        cpu.registers.f.half_carry =
-            (data.prev_a & 0xF) < (data.value & 0xF) + carry;
-        cpu.registers.f.carry = data.carry;
-    }
-}
+    cpu.registers.a = new_value;
+    cpu.pc.add(1);
 
-struct SubWorker;
-
-impl Worker for SubWorker {
-    type V = u8;
-    type D = Sub8Data;
-
-    fn run(&self, cpu: &mut CPU, value: Self::V) -> Self::D {
-        let prev_a = cpu.registers.a;
-        let (new_value, carry) = cpu.registers.a.overflowing_sub(value);
-
-        cpu.registers.a = new_value;
-        cpu.pc.add(1);
-
-        Sub8Data {
-            value,
-            carry,
-            prev_a,
-        }
-    }
-}
-
-struct SbcWorker;
-
-impl Worker for SbcWorker {
-    type V = u8;
-    type D = Sub8Data;
-
-    fn run(&self, cpu: &mut CPU, value: Self::V) -> Self::D {
-        let prev_a = cpu.registers.a;
-        let additinal_carry = cpu.registers.f.carry as u8;
-
-        let (mid_value, mid_carry) = cpu.registers.a.overflowing_sub(value);
-        let (new_value, carry) = mid_value.overflowing_sub(additinal_carry);
-
-        cpu.registers.a = new_value;
-        cpu.pc.add(1);
-
-        Sub8Data {
-            value,
-            carry: mid_carry || carry,
-            prev_a,
-        }
-    }
-}
-
-pub fn sub(cpu: &mut CPU, register: ArithmeticTarget) {
-    Executor {
-        cpu,
-        worker: SubWorker,
-        flagger: SubFlagger,
-        value: Value(register),
-    }
-    .run();
-}
-pub fn sbc(cpu: &mut CPU, register: ArithmeticTarget) {
-    Executor {
-        cpu,
-        worker: SbcWorker,
-        flagger: SubFlagger,
-        value: Value(register),
-    }
-    .run();
+    Some(instr)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{Registers, CPU};
+    use crate::{memory_bus, Registers, CPU};
+
+    fn cpu(registers: Registers) -> CPU {
+        CPU::new(
+            vec![0; memory_bus::BOOT_ROM_SIZE],
+            vec![0; memory_bus::ROM_BANK_0_SIZE],
+            Some(registers),
+        )
+    }
 
     #[test]
     fn sub_increments_pc() {
         let mut registers = Registers::new();
         registers.a = 0x00;
-        registers.b = 0x00;
 
-        let mut cpu = CPU::new(Some(registers));
+        let mut cpu = cpu(registers);
 
-        assert_eq!(cpu.pc, 0);
+        assert_eq!(cpu.pc.get(), 0);
 
-        sub(&mut cpu, ArithmeticTarget::B);
+        sub(&mut cpu, 0x00);
 
-        assert_eq!(cpu.pc, 1);
+        assert_eq!(cpu.pc.get(), 1);
     }
 
     #[test]
     fn sub_subs_value_from_target() {
         let mut registers = Registers::new();
         registers.a = 0x03;
-        registers.c = 0x02;
 
-        let mut cpu = CPU::new(Some(registers));
+        let mut cpu = cpu(registers);
 
-        sub(&mut cpu, ArithmeticTarget::C);
+        sub(&mut cpu, 0x02);
 
         assert_eq!(cpu.registers.a, 0x01);
 
         assert!(!cpu.registers.f.zero);
         assert!(!cpu.registers.f.carry);
         assert!(!cpu.registers.f.half_carry);
-
         assert!(cpu.registers.f.subtract);
-    }
-
-    #[test]
-    fn sub_subs_value_from_a() {
-        let mut registers = Registers::new();
-        registers.a = 0x02;
-
-        let mut cpu = CPU::new(Some(registers));
-
-        sub(&mut cpu, ArithmeticTarget::A);
-
-        assert_eq!(cpu.registers.a, 0x00);
-
-        assert!(cpu.registers.f.zero);
     }
 
     #[test]
     fn sub_subs_with_carry() {
         let mut registers = Registers::new();
         registers.a = 0x10;
-        registers.d = 0x20;
 
-        let mut cpu = CPU::new(Some(registers));
+        let mut cpu = cpu(registers);
 
-        sub(&mut cpu, ArithmeticTarget::D);
+        sub(&mut cpu, 0x20);
 
         assert_eq!(cpu.registers.a, 240);
 
@@ -164,11 +101,10 @@ mod tests {
     fn sub_subs_with_half_carry() {
         let mut registers = Registers::new();
         registers.a = 0b0001_0111;
-        registers.e = 0b0000_1111;
 
-        let mut cpu = CPU::new(Some(registers));
+        let mut cpu = cpu(registers);
 
-        sub(&mut cpu, ArithmeticTarget::E);
+        sub(&mut cpu, 0b0000_1111);
 
         assert_eq!(cpu.registers.a, 0x08);
 
@@ -181,26 +117,24 @@ mod tests {
     fn sbc_increments_pc() {
         let mut registers = Registers::new();
         registers.a = 0x00;
-        registers.b = 0x00;
 
-        let mut cpu = CPU::new(Some(registers));
+        let mut cpu = cpu(registers);
 
-        assert_eq!(cpu.pc, 0);
+        assert_eq!(cpu.pc.get(), 0);
 
-        sbc(&mut cpu, ArithmeticTarget::B);
+        sbc(&mut cpu, 0x00);
 
-        assert_eq!(cpu.pc, 1);
+        assert_eq!(cpu.pc.get(), 1);
     }
 
     #[test]
     fn sbc_without_carry_subs_value() {
         let mut registers = Registers::new();
         registers.a = 0x02;
-        registers.b = 0x01;
 
-        let mut cpu = CPU::new(Some(registers));
+        let mut cpu = cpu(registers);
 
-        sbc(&mut cpu, ArithmeticTarget::B);
+        sbc(&mut cpu, 0x01);
 
         assert_eq!(cpu.registers.a, 0x01);
 
@@ -214,11 +148,10 @@ mod tests {
     fn sbc_subs_with_half_carry() {
         let mut registers = Registers::new();
         registers.a = 0b0010_0111;
-        registers.e = 0b0000_1001;
 
-        let mut cpu = CPU::new(Some(registers));
+        let mut cpu = cpu(registers);
 
-        sbc(&mut cpu, ArithmeticTarget::E);
+        sbc(&mut cpu, 0b0000_1001);
 
         assert_eq!(cpu.registers.a, 0b0001_1110);
 
@@ -230,11 +163,10 @@ mod tests {
     fn sbc_subs_with_carry() {
         let mut registers = Registers::new();
         registers.a = 0b1111_1110;
-        registers.d = 0b1111_1111;
 
-        let mut cpu = CPU::new(Some(registers));
+        let mut cpu = cpu(registers);
 
-        sbc(&mut cpu, ArithmeticTarget::D);
+        sbc(&mut cpu, 0b1111_1111);
 
         assert_eq!(cpu.registers.a, 0xFF);
 
@@ -245,13 +177,12 @@ mod tests {
     fn sbc_through_carry() {
         let mut registers = Registers::new();
         registers.a = 0b1;
-        registers.d = 0b1;
         // overflows to 0xFF
         registers.f.carry = true;
 
-        let mut cpu = CPU::new(Some(registers));
+        let mut cpu = cpu(registers);
 
-        sbc(&mut cpu, ArithmeticTarget::D);
+        sbc(&mut cpu, 0b1);
 
         assert_eq!(cpu.registers.a, 0xFF);
 
@@ -266,9 +197,9 @@ mod tests {
         // 1 - 1 - 1 -> overflows
         registers.f.carry = true;
 
-        let mut cpu = CPU::new(Some(registers));
+        let mut cpu = cpu(registers);
 
-        sbc(&mut cpu, ArithmeticTarget::D);
+        sbc(&mut cpu, 0b0001_0001);
 
         assert_eq!(cpu.registers.a, 0x0F);
 
