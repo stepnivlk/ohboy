@@ -7,62 +7,6 @@ use instruction::{Instr, InstrKind, Operand};
 use memory_bus::MemoryBus;
 use registers::{Reg16Kind, Reg8Kind, Registers};
 
-pub enum ArithmeticTarget {
-    A,
-    B,
-    C,
-    D,
-    E,
-    H,
-    L,
-}
-
-pub enum ADDHLTarget {
-    BC,
-    DE,
-    HL,
-    SP,
-}
-
-#[derive(Copy, Clone)]
-pub enum LoadByteTarget {
-    A,
-    B,
-    C,
-    D,
-    E,
-    H,
-    L,
-    HL,
-}
-
-pub enum LoadWordTarget {
-    BC,
-    DE,
-    HL,
-    SP,
-}
-
-#[derive(Copy, Clone)]
-pub enum LoadByteSource {
-    A,
-    B,
-    C,
-    D,
-    E,
-    H,
-    L,
-    HL,
-    D8,
-}
-
-#[derive(Copy, Clone)]
-pub enum StackTarget {
-    BC,
-    DE,
-    HL,
-}
-
 struct Pc(u16);
 
 impl Pc {
@@ -277,6 +221,7 @@ impl CPU {
                 Some(instr)
             },
 
+            // TODO:
             InstrKind::Rot => {
                 let mut lhs = self.registers.a;
 
@@ -306,32 +251,12 @@ impl CPU {
                 Some(instr)
             },
 
-            _ => {
-                panic!("{}: UNIMPLEMENTED", instr);
-            }
-        }
-    }
-
-    fn execute_prefixed(&mut self, instruction: u8) {
-        match instruction {
-            // BIT 7,H
-            0x7C => {
-                println!("[0xCB7C |    BIT 7, H    ]");
-                let bit_position = 7;
-                let bit = (self.registers.h >> bit_position) & 0b1;
-
-                self.registers.f.zero = bit == 0;
-                self.registers.f.subtract = false;
-                self.registers.f.half_carry = false;
-
-                self.pc.add(2);
+            InstrKind::Bit => {
+                bit(self, instr)
             },
 
             _ => {
-                dbg!(self.pc.get());
-                dbg!(self.sp);
-                dbg!(&self.registers);
-                panic!("Unknown instruction for 0xCB{:X}", instruction);
+                panic!("{}: UNIMPLEMENTED", instr);
             }
         }
     }

@@ -7,6 +7,7 @@ mod or;
 mod stack;
 mod subs;
 mod xor;
+mod bit;
 
 use crate::{
     instruction::{CondKind, Operand},
@@ -23,6 +24,7 @@ pub use or::or;
 pub use stack::{pop, push};
 pub use subs::{sbc, sub};
 pub use xor::xor;
+pub use bit::bit;
 
 pub fn should_jump(cpu: &CPU, op: Operand) -> bool {
     match op {
