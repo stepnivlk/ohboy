@@ -22,6 +22,7 @@ pub fn push(cpu: &mut CPU, instr: Instr) -> Option<Instr> {
 }
 
 pub fn pop(cpu: &mut CPU, instr: Instr) -> Option<Instr> {
+    dbg!(cpu.sp);
     let lo = cpu.bus.read_byte(cpu.sp) as u16;
     cpu.sp = cpu.sp.wrapping_add(1);
 

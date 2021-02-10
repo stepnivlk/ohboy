@@ -60,6 +60,7 @@ pub enum InstrKind {
     Dec,
     Rot,
     Bit,
+    RotA,
 }
 
 type Tag = &'static str;
@@ -267,7 +268,7 @@ impl convert::From<u8> for Instr {
             0x14 => i("INC D").id(Inc).rhs(Reg8(Reg8Kind::D)),
             0x15 => i("DEC D"),
             0x16 => i("LD D, u8").id(Ld).lhs(Reg8(D)).rhs(U8),
-            0x17 => i("RLA").id(Rot).lhs(Reg8(A)).rhs(RotLeft).post_op(PostOp::CarryToB0),
+            0x17 => i("RLA").id(RotA).rhs(RotLeft).post_op(PostOp::CarryToB0),
             0x18 => i("JR i8").id(Jr).lhs(Cond(CondKind::Always)),
             0x19 => i("ADD HL, DE").id(AddHl).rhs(Reg16(DE)),
             0x1A => i("LD A, (DE)").id(Ld).lhs(Reg8(A)).rhs(Reg16Indir(DE)),

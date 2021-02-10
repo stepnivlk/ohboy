@@ -47,7 +47,6 @@ impl MemoryBus {
                 r
             }
             _ => {
-                // self.memory[address]
                 panic!("unimplemented mem access at: 0x{:x}", address);
             }
         }
