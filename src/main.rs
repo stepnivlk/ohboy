@@ -221,13 +221,20 @@ impl CPU {
                 Some(instr)
             },
 
-            // TODO:
+            // TODO: Different Flag rules and byte size for 0xCB and normal ones.
+            // RLA => 1B
             InstrKind::Rot => {
-                let mut lhs = self.registers.a;
+                let lhs = instr.lhs.unwrap();
+                let lhs = match lhs {
+                    Operand::Reg8(r) => r,
+                    _ => panic!(),
+                };
+
+                let mut val = self.registers.get_8(&lhs);
 
                 match instr.rhs {
                     Some(Operand::RotLeft) => {
-                        lhs = lhs << 1;
+                        val = val << 1;
                     },
 
                     _ => {
@@ -237,16 +244,19 @@ impl CPU {
 
                 match instr.post_op {
                     Some(instruction::PostOp::CarryToB0) => {
-                        let carry = if self.registers.f.carry { 0b1 } else { 0b0 };
-                        dbg!(carry);
+                        let carry = if self.registers.f.carry { 1 } else { 0 };
+
+                        val = val | carry;
                     },
 
                     _ => panic!("{}: unsupported post_op {:?}", instr, instr.post_op),
                 }
 
-                self.registers.a = lhs;
+                self.registers.set_8(&lhs, val);
 
-                panic!("UNIMPLEMENTED");
+                // TODO: Flags
+
+                self.pc.add(2);
 
                 Some(instr)
             },
