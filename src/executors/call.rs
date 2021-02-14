@@ -1,6 +1,6 @@
 use crate::{executors::should_jump, instruction::Instr, CPU};
 
-pub fn call(cpu: &mut CPU, instr: Instr) -> Option<Instr> {
+pub fn call(cpu: &mut CPU, mut instr: Instr) -> Option<Instr> {
     let next_pc = cpu.pc.get().wrapping_add(3);
 
     if should_jump(cpu, instr.lhs?) {
@@ -13,8 +13,14 @@ pub fn call(cpu: &mut CPU, instr: Instr) -> Option<Instr> {
         cpu.sp = cpu.sp.wrapping_sub(1);
         cpu.bus.write_byte(cpu.sp, lo);
 
-        cpu.pc.set(cpu.read_next_word());
+        let jump_addr = cpu.read_next_word();
+
+        instr.trace((1, jump_addr));
+
+        cpu.pc.set(jump_addr);
     } else {
+        instr.trace((0, next_pc));
+
         cpu.pc.set(next_pc);
     }
 

@@ -13,6 +13,7 @@ pub enum Operand {
     Cond(CondKind),
     RotLeft,
     RotRight,
+    BitPos(u8),
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -58,6 +59,7 @@ pub enum InstrKind {
     Inc,
     Dec,
     Rot,
+    Bit,
 }
 
 type Tag = &'static str;
@@ -117,10 +119,14 @@ impl Instr {
 
 impl convert::From<u16> for Instr {
     fn from(pos: u16) -> Instr {
+        use InstrKind::*;
+        use Operand::*;
+        use Reg16Kind::*;
+        use Reg8Kind::*;
         let i = |tag| Instr::new(pos, tag);
 
         match pos {
-            0xCB00 => i("RLC B"),
+            0xCB00 => i("RLC B").id(Rot).lhs(Reg8(B)).rhs(RotLeft).post_op(PostOp::B7ToCarryAndB0),
             0xCB01 => i("RLC C"),
             0xCB02 => i("RLC D"),
             0xCB03 => i("RLC E"),
@@ -137,8 +143,91 @@ impl convert::From<u16> for Instr {
             0xCB0E => i("RRC (HL)"),
             0xCB0F => i("RRC A"),
 
-            0xCB11 => i("RL C"),
-            0xCB7C => i("BIT 7, H"),
+            0xCB10 => i("RL B"),
+            0xCB11 => i("RL C").id(Rot).lhs(Reg8(C)).rhs(RotLeft).post_op(PostOp::CarryToB0),
+            0xCB12 => i("RL D"),
+            0xCB13 => i("RL E"),
+            0xCB14 => i("RL H"),
+            0xCB15 => i("RL L"),
+            0xCB16 => i("RL (HL)"),
+            0xCB17 => i("RL A"),
+            0xCB18 => i("RR B"),
+            0xCB19 => i("RR C"),
+            0xCB1A => i("RR D"),
+            0xCB1B => i("RR E"),
+            0xCB1C => i("RR H"),
+            0xCB1D => i("RR L"),
+            0xCB1E => i("RR (HL)"),
+            0xCB1F => i("RR A"),
+
+            0xCB40 => i("BIT 0, B").id(Bit).lhs(BitPos(0)).rhs(Reg8(B)),
+            0xCB41 => i("BIT 0, C").id(Bit).lhs(BitPos(0)).rhs(Reg8(C)),
+            0xCB42 => i("BIT 0, D").id(Bit).lhs(BitPos(0)).rhs(Reg8(D)),
+            0xCB43 => i("BIT 0, E").id(Bit).lhs(BitPos(0)).rhs(Reg8(E)),
+            0xCB44 => i("BIT 0, H").id(Bit).lhs(BitPos(0)).rhs(Reg8(H)),
+            0xCB45 => i("BIT 0, L").id(Bit).lhs(BitPos(0)).rhs(Reg8(L)),
+            0xCB46 => i("BIT 0, (HL)").id(Bit).lhs(BitPos(0)).rhs(Reg16Indir(HL)),
+            0xCB47 => i("BIT 0, A").id(Bit).lhs(BitPos(0)).rhs(Reg8(A)),
+            0xCB48 => i("BIT 1, B").id(Bit).lhs(BitPos(1)).rhs(Reg8(B)),
+            0xCB49 => i("BIT 1, C").id(Bit).lhs(BitPos(1)).rhs(Reg8(C)),
+            0xCB4A => i("BIT 1, D").id(Bit).lhs(BitPos(1)).rhs(Reg8(D)),
+            0xCB4B => i("BIT 1, E").id(Bit).lhs(BitPos(1)).rhs(Reg8(E)),
+            0xCB4C => i("BIT 1, H").id(Bit).lhs(BitPos(1)).rhs(Reg8(H)),
+            0xCB4D => i("BIT 1, L").id(Bit).lhs(BitPos(1)).rhs(Reg8(L)),
+            0xCB4E => i("BIT 1, (HL)").id(Bit).lhs(BitPos(0)).rhs(Reg16Indir(HL)),
+            0xCB4F => i("BIT 1, A").id(Bit).lhs(BitPos(1)).rhs(Reg8(A)),
+
+            0xCB50 => i("BIT 2, B").id(Bit).lhs(BitPos(2)).rhs(Reg8(B)),
+            0xCB51 => i("BIT 2, C").id(Bit).lhs(BitPos(2)).rhs(Reg8(C)),
+            0xCB52 => i("BIT 2, D").id(Bit).lhs(BitPos(2)).rhs(Reg8(D)),
+            0xCB53 => i("BIT 2, E").id(Bit).lhs(BitPos(2)).rhs(Reg8(E)),
+            0xCB54 => i("BIT 2, H").id(Bit).lhs(BitPos(2)).rhs(Reg8(H)),
+            0xCB55 => i("BIT 2, L").id(Bit).lhs(BitPos(2)).rhs(Reg8(L)),
+            0xCB56 => i("BIT 2, (HL)").id(Bit).lhs(BitPos(0)).rhs(Reg16Indir(HL)),
+            0xCB57 => i("BIT 2, A").id(Bit).lhs(BitPos(2)).rhs(Reg8(A)),
+            0xCB58 => i("BIT 3, B").id(Bit).lhs(BitPos(3)).rhs(Reg8(B)),
+            0xCB59 => i("BIT 3, C").id(Bit).lhs(BitPos(3)).rhs(Reg8(C)),
+            0xCB5A => i("BIT 3, D").id(Bit).lhs(BitPos(3)).rhs(Reg8(D)),
+            0xCB5B => i("BIT 3, E").id(Bit).lhs(BitPos(3)).rhs(Reg8(E)),
+            0xCB5C => i("BIT 3, H").id(Bit).lhs(BitPos(3)).rhs(Reg8(H)),
+            0xCB5D => i("BIT 3, L").id(Bit).lhs(BitPos(3)).rhs(Reg8(L)),
+            0xCB5E => i("BIT 3, (HL)").id(Bit).lhs(BitPos(0)).rhs(Reg16Indir(HL)),
+            0xCB5F => i("BIT 3, A").id(Bit).lhs(BitPos(3)).rhs(Reg8(A)),
+
+            0xCB60 => i("BIT 4, B").id(Bit).lhs(BitPos(4)).rhs(Reg8(B)),
+            0xCB61 => i("BIT 4, C").id(Bit).lhs(BitPos(4)).rhs(Reg8(C)),
+            0xCB62 => i("BIT 4, D").id(Bit).lhs(BitPos(4)).rhs(Reg8(D)),
+            0xCB63 => i("BIT 4, E").id(Bit).lhs(BitPos(4)).rhs(Reg8(E)),
+            0xCB64 => i("BIT 4, H").id(Bit).lhs(BitPos(4)).rhs(Reg8(H)),
+            0xCB65 => i("BIT 4, L").id(Bit).lhs(BitPos(4)).rhs(Reg8(L)),
+            0xCB66 => i("BIT 4, (HL)").id(Bit).lhs(BitPos(0)).rhs(Reg16Indir(HL)),
+            0xCB67 => i("BIT 4, A").id(Bit).lhs(BitPos(4)).rhs(Reg8(A)),
+            0xCB68 => i("BIT 5, B").id(Bit).lhs(BitPos(5)).rhs(Reg8(B)),
+            0xCB69 => i("BIT 5, C").id(Bit).lhs(BitPos(5)).rhs(Reg8(C)),
+            0xCB6A => i("BIT 5, D").id(Bit).lhs(BitPos(5)).rhs(Reg8(D)),
+            0xCB6B => i("BIT 5, E").id(Bit).lhs(BitPos(5)).rhs(Reg8(E)),
+            0xCB6C => i("BIT 5, H").id(Bit).lhs(BitPos(5)).rhs(Reg8(H)),
+            0xCB6D => i("BIT 5, L").id(Bit).lhs(BitPos(5)).rhs(Reg8(L)),
+            0xCB6E => i("BIT 5, (HL)").id(Bit).lhs(BitPos(0)).rhs(Reg16Indir(HL)),
+            0xCB6F => i("BIT 5, A").id(Bit).lhs(BitPos(5)).rhs(Reg8(A)),
+                                                                        
+            0xCB70 => i("BIT 6, B").id(Bit).lhs(BitPos(6)).rhs(Reg8(B)),
+            0xCB71 => i("BIT 6, C").id(Bit).lhs(BitPos(6)).rhs(Reg8(C)),
+            0xCB72 => i("BIT 6, D").id(Bit).lhs(BitPos(6)).rhs(Reg8(D)),
+            0xCB73 => i("BIT 6, E").id(Bit).lhs(BitPos(6)).rhs(Reg8(E)),
+            0xCB74 => i("BIT 6, H").id(Bit).lhs(BitPos(6)).rhs(Reg8(H)),
+            0xCB75 => i("BIT 6, L").id(Bit).lhs(BitPos(6)).rhs(Reg8(L)),
+            0xCB76 => i("BIT 6, (HL)").id(Bit).lhs(BitPos(0)).rhs(Reg16Indir(HL)),
+            0xCB77 => i("BIT 6, A").id(Bit).lhs(BitPos(6)).rhs(Reg8(A)),
+            0xCB78 => i("BIT 7, B").id(Bit).lhs(BitPos(7)).rhs(Reg8(B)),
+            0xCB79 => i("BIT 7, C").id(Bit).lhs(BitPos(7)).rhs(Reg8(C)),
+            0xCB7A => i("BIT 7, D").id(Bit).lhs(BitPos(7)).rhs(Reg8(D)),
+            0xCB7B => i("BIT 7, E").id(Bit).lhs(BitPos(7)).rhs(Reg8(E)),
+            0xCB7C => i("BIT 7, H").id(Bit).lhs(BitPos(7)).rhs(Reg8(H)),
+            0xCB7D => i("BIT 7, L").id(Bit).lhs(BitPos(7)).rhs(Reg8(L)),
+            0xCB7E => i("BIT 7, (HL)").id(Bit).lhs(BitPos(0)).rhs(Reg16Indir(HL)),
+            0xCB7F => i("BIT 7, A").id(Bit).lhs(BitPos(7)).rhs(Reg8(A)),
+
             _ => Instr::new(pos, "UNKNOWN"),
         }
     }
