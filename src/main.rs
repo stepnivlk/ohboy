@@ -142,6 +142,8 @@ impl CPU {
             }
 
             InstrKind::Pop => {
+                dbg!(&instr);
+                dbg!(self.registers.get_bc());
                 pop(self, instr)
             }
 
@@ -221,8 +223,38 @@ impl CPU {
                 Some(instr)
             },
 
-            // TODO: Different Flag rules and byte size for 0xCB and normal ones.
-            // RLA => 1B
+            InstrKind::RotA => {
+                let mut val = self.registers.a;
+
+                match instr.rhs {
+                    Some(Operand::RotLeft) => {
+                        val = val << 1;
+                    },
+
+                    _ => {
+                        panic!("{}: Mismatched operand {:?}", instr, instr.rhs)
+                    }
+                }
+
+                match instr.post_op {
+                    Some(instruction::PostOp::CarryToB0) => {
+                        let carry = if self.registers.f.carry { 1 } else { 0 };
+
+                        val = val | carry;
+                    },
+
+                    _ => panic!("{}: unsupported post_op {:?}", instr, instr.post_op),
+                }
+
+                self.registers.a = val;
+
+                // TODO: Flags
+
+                self.pc.add(1);
+
+                Some(instr)
+            },
+
             InstrKind::Rot => {
                 let lhs = instr.lhs.unwrap();
                 let lhs = match lhs {
