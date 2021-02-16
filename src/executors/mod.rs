@@ -22,7 +22,7 @@ pub use jumps::{jp, jr};
 pub use lds::ld;
 pub use or::or;
 pub use stack::{pop, push};
-pub use subs::{sbc, sub};
+pub use subs::{sbc, sub, cp};
 pub use xor::xor;
 pub use bit::bit;
 

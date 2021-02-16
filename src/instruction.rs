@@ -8,6 +8,7 @@ pub enum Operand {
     U8,
     U8Indir(u16),
     U16,
+    U16Indir,
     Reg8Indir(Reg8Kind, u16),
     Reg16Indir(Reg16Kind),
     Cond(CondKind),
@@ -61,6 +62,7 @@ pub enum InstrKind {
     Rot,
     Bit,
     RotA,
+    Cp,
 }
 
 type Tag = &'static str;
@@ -316,7 +318,7 @@ impl convert::From<u8> for Instr {
             0x3A => i("LD A, (HL-)"),
             0x3B => i("DEC SP"),
             0x3C => i("INC A").id(Inc).rhs(Reg8(Reg8Kind::A)),
-            0x3D => i("DEC A"),
+            0x3D => i("DEC A").id(Dec).rhs(Reg8(A)),
             0x3E => i("LD A, u8").id(Ld).lhs(Reg8(A)).rhs(U8),
             0x3F => i("CCF"),
 
@@ -501,11 +503,11 @@ impl convert::From<u8> for Instr {
             0xE7 => i("RST 20h"),
             0xE8 => i("ADD SP, i8"),
             0xE9 => i("JP HL"),
-            0xEA => i("LD (u16), A"),
+            0xEA => i("LD (u16), A").id(Ld).lhs(U16Indir).rhs(Reg8(A)),
             0xEE => i("XOR A, u8"),
             0xEF => i("RST 28h"),
 
-            0xF0 => i("LD A, (FF00+u8)"),
+            0xF0 => i("LD A, (FF00+u8)").id(Ld).lhs(Reg8(A)).rhs(U8Indir(0xFF00)),
             0xF1 => i("POP AF"),
             0xF2 => i("LD A, (FF00+C)"),
             0xF3 => i("DI"),
@@ -516,7 +518,7 @@ impl convert::From<u8> for Instr {
             0xF9 => i("LD SP, HL").id(LdWord).lhs(Reg16(SP)).rhs(Reg16(HL)),
             0xFA => i("LD A, (u16)"),
             0xFB => i("EI"),
-            0xFE => i("CP A, u8"),
+            0xFE => i("CP A, u8").id(Cp).lhs(Reg8(A)).rhs(U8),
             0xFF => i("RST 38h"),
 
             _ => Instr::new(pos as u16, "UNKNOWN"),

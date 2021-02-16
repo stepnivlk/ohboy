@@ -142,8 +142,6 @@ impl CPU {
             }
 
             InstrKind::Pop => {
-                dbg!(&instr);
-                dbg!(self.registers.get_bc());
                 pop(self, instr)
             }
 
@@ -157,6 +155,10 @@ impl CPU {
 
             InstrKind::Ld => {
                 ld(self, instr)
+            }
+
+            InstrKind::Cp => {
+                cp(self, instr)
             }
 
             InstrKind::LdWord => {
@@ -186,17 +188,62 @@ impl CPU {
             InstrKind::Inc => {
                 match instr.rhs {
                     Some(Operand::Reg8(kind)) => {
-                        let val = self.registers.get_8(&kind).wrapping_add(1);
+                        let orig_val = self.registers.get_8(&kind);
+                        let val = orig_val.wrapping_add(1);
 
                         self.registers.set_8(&kind, val);
 
                         self.registers.f.zero = val == 0;
                         self.registers.f.subtract = false;
-                        self.registers.f.half_carry = val & 0xF == 0xF;
+                        self.registers.f.half_carry = orig_val & 0xF == 0xF;
                     }
 
                     Some(Operand::Reg16(kind)) => {
                         let val = self.registers.get_16(&kind).wrapping_add(1);
+
+                        // println!("{}", instr);
+                        // panic!();
+                        self.registers.set_16(&kind, val);
+                    }
+
+                    Some(Operand::Reg16Indir(kind)) => {
+                        let addr = self.registers.get_16(&kind);
+
+                        let orig_val = self.bus.read_byte(addr);
+                        let val = orig_val.wrapping_add(1);
+
+                        self.bus.write_byte(addr, val);
+
+                        self.registers.f.zero = val == 0;
+                        self.registers.f.subtract = false;
+                        self.registers.f.half_carry = orig_val & 0xF == 0xF;
+                    }
+
+                    _ => {
+                        panic!("{}: Mismatched operand {:?}", instr, instr.rhs)
+                    }
+                };
+
+                self.pc.add(1);
+
+                Some(instr)
+            },
+
+            InstrKind::Dec => {
+                match instr.rhs {
+                    Some(Operand::Reg8(kind)) => {
+                        let orig_val = self.registers.get_8(&kind);
+                        let val = orig_val.wrapping_sub(1);
+
+                        self.registers.set_8(&kind, val);
+
+                        self.registers.f.zero = val == 0;
+                        self.registers.f.subtract = true;
+                        self.registers.f.half_carry = orig_val & 0xF == 0x0;
+                    }
+
+                    Some(Operand::Reg16(kind)) => {
+                        let val = self.registers.get_16(&kind).wrapping_sub(1);
 
                         self.registers.set_16(&kind, val);
                     }
@@ -204,13 +251,14 @@ impl CPU {
                     Some(Operand::Reg16Indir(kind)) => {
                         let addr = self.registers.get_16(&kind);
 
-                        let val = self.bus.read_byte(addr).wrapping_add(1);
+                        let orig_val = self.bus.read_byte(addr);
+                        let val = orig_val.wrapping_sub(1);
 
                         self.bus.write_byte(addr, val);
 
                         self.registers.f.zero = val == 0;
-                        self.registers.f.subtract = false;
-                        // TODO: Set half_carry
+                        self.registers.f.subtract = true;
+                        self.registers.f.half_carry = orig_val & 0xF == 0x0;
                     }
 
                     _ => {
@@ -228,6 +276,8 @@ impl CPU {
 
                 match instr.rhs {
                     Some(Operand::RotLeft) => {
+                        self.registers.f.carry = (val & 0x80) == 0x80;
+
                         val = val << 1;
                     },
 
@@ -248,7 +298,9 @@ impl CPU {
 
                 self.registers.a = val;
 
-                // TODO: Flags
+                self.registers.f.zero = false;
+                self.registers.f.subtract = false;
+                self.registers.f.half_carry = false;
 
                 self.pc.add(1);
 

@@ -5,7 +5,7 @@ pub fn call(cpu: &mut CPU, mut instr: Instr) -> Option<Instr> {
 
     if should_jump(cpu, instr.lhs?) {
         let hi = ((next_pc & 0xFF00) >> 8) as u8;
-        let lo = ((next_pc & 0xFF) >> 8) as u8;
+        let lo = (next_pc & 0xFF) as u8;
 
         cpu.sp = cpu.sp.wrapping_sub(1);
         cpu.bus.write_byte(cpu.sp, hi);

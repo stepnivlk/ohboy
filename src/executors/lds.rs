@@ -55,6 +55,13 @@ pub fn ld(cpu: &mut CPU, mut instr: Instr) -> Option<Instr> {
 
             addr
         },
+        Some(Operand::U16Indir) => {
+            let addr = cpu.read_next_word();
+
+            cpu.bus.write_byte(addr, rhs);
+
+            addr
+        },
         _ => panic!("{}: unsupported operand {:?}", instr, instr.lhs),
     };
 
@@ -67,6 +74,9 @@ pub fn ld(cpu: &mut CPU, mut instr: Instr) -> Option<Instr> {
                 Some(Operand::U8Indir(_)) => {
                     cpu.pc.add(2);
                 },
+                Some(Operand::U16Indir) => {
+                    cpu.pc.add(3);
+                },
                 _ => cpu.pc.add(1),
             }
         },
@@ -75,8 +85,13 @@ pub fn ld(cpu: &mut CPU, mut instr: Instr) -> Option<Instr> {
     match &instr.post_op {
         Some(PostOp::Dec(Reg16Kind::HL)) => {
             cpu.registers.set_hl(cpu.registers.get_hl().wrapping_sub(1))
-        }
-        None => {}
+        },
+        Some(PostOp::Inc(Reg16Kind::HL)) => {
+            // println!("{}", instr);
+            // panic!();
+            cpu.registers.set_hl(cpu.registers.get_hl().wrapping_add(1))
+        },
+        None => {},
         _ => panic!("{}: unsupported post_op {:?}", instr, instr.post_op),
     };
 
