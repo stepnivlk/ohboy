@@ -1,4 +1,4 @@
-use crate::{executors::op_to_u8_reg, instruction::Instr, CPU};
+use crate::{executors::op_to_u8_reg, instruction::{Instr, Operand}, CPU};
 
 pub fn sub(cpu: &mut CPU, instr: Instr) -> Option<Instr> {
     let val = op_to_u8_reg(&instr.rhs?, &cpu.registers);
@@ -13,6 +13,30 @@ pub fn sub(cpu: &mut CPU, instr: Instr) -> Option<Instr> {
     cpu.registers.f.carry = carry;
 
     cpu.registers.a = new_value;
+    cpu.pc.add(1);
+
+    Some(instr)
+}
+
+pub fn cp(cpu: &mut CPU, instr: Instr) -> Option<Instr> {
+    let val = match instr.rhs {
+        Some(Operand::U8) => {
+            cpu.pc.add(1);
+            cpu.read_next_byte()
+        },
+        _ => panic!("[{:X} | {}] unsupported operand {:?}", instr.pos, instr.tag, instr.rhs),
+    };
+
+    let a = cpu.registers.a;
+
+    let (new_value, carry) = a.overflowing_sub(val);
+
+    cpu.registers.f.zero = new_value == 0;
+    cpu.registers.f.subtract = true;
+    // TODO: Should add a carry?
+    cpu.registers.f.half_carry = (a & 0xF) < (val & 0xF);
+    cpu.registers.f.carry = carry;
+
     cpu.pc.add(1);
 
     Some(instr)
