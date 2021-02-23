@@ -1,7 +1,12 @@
+extern crate minifb;
+
 mod executors;
 mod instruction;
 mod memory_bus;
 mod registers;
+mod gpu;
+
+use minifb::{Key, Window, WindowOptions};
 
 use instruction::{Instr, InstrKind, Operand};
 use memory_bus::MemoryBus;
@@ -37,12 +42,18 @@ enum State {
     Halted,
 }
 
+struct Clock {
+    m: u8,
+    t: u8,
+}
+
 pub struct CPU {
     registers: Registers,
     pc: Pc,
     sp: u16,
     bus: MemoryBus,
     state: State,
+    clock: Clock,
 }
 
 impl CPU {
@@ -57,6 +68,7 @@ impl CPU {
             sp: 0,
             bus: MemoryBus::new(boot_rom_buffer, game_rom_buffer),
             state: State::Running,
+            clock: Clock { m: 0, t: 0 },
         }
     }
 
@@ -385,12 +397,19 @@ fn buffer_from_file(path: &str) -> Vec<u8> {
 }
 
 fn main() {
+    let mut window = Window::new("Game On", 160, 144, WindowOptions::default())
+        .unwrap_or_else(|e| {
+            panic!("{}", e);
+        });
+
+    window.limit_update_rate(Some(std::time::Duration::from_micros(64400)));
+
     let boot_rom_buffer = buffer_from_file("b_rom.gb");
     let game_rom_buffer = buffer_from_file("tetris_rom.gb");
 
     let mut cpu = CPU::new(boot_rom_buffer, game_rom_buffer, None);
 
-    loop {
+    while window.is_open() && !window.is_key_down(Key::Escape) {
         cpu.step();
     }
 }
