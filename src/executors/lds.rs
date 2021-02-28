@@ -15,6 +15,11 @@ pub fn ld(cpu: &mut CPU, mut instr: Instr) -> Option<Instr> {
             Reg8Kind::H => cpu.registers.h,
             Reg8Kind::L => cpu.registers.l,
         },
+        Some(Operand::U8Indir(offset)) => {
+            let addr = offset + (cpu.read_next_byte() as u16);
+
+            cpu.bus.read_byte(addr)
+        },
         Some(Operand::Reg16Indir(reg)) => cpu.read_at_reg_16(reg),
         Some(Operand::U8) => cpu.read_next_byte(),
         _ => panic!("[{:X} | {}] unsupported operand {:?}", instr.pos, instr.tag, instr.rhs),
@@ -68,6 +73,7 @@ pub fn ld(cpu: &mut CPU, mut instr: Instr) -> Option<Instr> {
     instr.trace((lhs, rhs as u16));
 
     match &instr.rhs {
+        Some(Operand::U8Indir(_)) => cpu.pc.add(2),
         Some(Operand::U8) => cpu.pc.add(2),
         _ => {
             match &instr.lhs {
