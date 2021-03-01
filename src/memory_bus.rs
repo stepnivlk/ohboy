@@ -47,6 +47,8 @@ pub struct MemoryBus {
     boot_rom: [u8; BOOT_ROM_SIZE],
     rom_bank_0: [u8; ROM_BANK_0_SIZE],
     rom_bank_n: [u8; ROM_BANK_N_SIZE],
+    e_ram: [u8; E_RAM_SIZE],
+    w_ram: [u8; W_RAM_SIZE],
     z_ram: [u8; Z_RAM_SIZE],
     // TODO: Move to gpu
     pub v_ram: [u8; V_RAM_SIZE],
@@ -70,6 +72,8 @@ impl MemoryBus {
             rom_bank_n: [0; ROM_BANK_N_SIZE],
             // TODO: Use GPU instance.
             v_ram: [0; V_RAM_SIZE],
+            e_ram: [0; E_RAM_SIZE],
+            w_ram: [0; W_RAM_SIZE],
             z_ram: [0; Z_RAM_SIZE],
         }
     }
@@ -79,6 +83,8 @@ impl MemoryBus {
 
         match address {
             BOOT_ROM_START..=BOOT_ROM_END => {
+                return self.boot_rom[address];
+
                 if self.in_bios {
                     if address < 0x0100 {
                         return self.boot_rom[address]
@@ -86,6 +92,7 @@ impl MemoryBus {
                     // This means we're first time behind the boot (0xFF)
                     // How can be PC passed though?
                     // Can there be some simpler approach without need for mut?
+                    // CPU should tell membus when to switch
                     } else if false {
                         // self.in_bios = false;
                     }
@@ -106,6 +113,12 @@ impl MemoryBus {
                 }
                 // TODO: Read IO
                 0
+            },
+            E_RAM_START..=E_RAM_END => {
+                self.e_ram[address - E_RAM_START]
+            },
+            W_RAM_START..=W_RAM_END => {
+                self.w_ram[address - W_RAM_START]
             },
             V_RAM_START..=V_RAM_END => {
                 self.v_ram[address - V_RAM_START]
@@ -128,6 +141,12 @@ impl MemoryBus {
             },
             IO_REGS_START..=IO_REGS_END => {
                 // TODO: Write IO
+            },
+            E_RAM_START..=E_RAM_END => {
+                self.e_ram[address - E_RAM_START] = byte;
+            },
+            W_RAM_START..=W_RAM_END => {
+                self.w_ram[address - W_RAM_START] = byte;
             },
             V_RAM_START..=V_RAM_END => {
                 self.v_ram[address - V_RAM_START] = byte;
