@@ -1,4 +1,4 @@
-use crate::memory_bus::{V_RAM_SIZE, OAM_SIZE};
+use crate::memory_bus::{OAM_SIZE, V_RAM_SIZE};
 
 const SCREEN_SIZE: usize = 168 * 144 * 4;
 
@@ -33,7 +33,7 @@ impl GPU {
         // TODO: Add the latest CPU clock to modeclock
 
         match self.mode {
-            _ => panic!("unimplemented GPU mode")
+            _ => panic!("unimplemented GPU mode"),
         }
     }
 }

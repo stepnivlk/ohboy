@@ -1,5 +1,6 @@
 mod adds;
 mod and;
+mod bit;
 mod call;
 mod jumps;
 mod lds;
@@ -7,24 +8,34 @@ mod or;
 mod stack;
 mod subs;
 mod xor;
-mod bit;
 
 use crate::{
-    instruction::{CondKind, Operand},
+    instruction::{CondKind, Instr, Operand},
     registers::{Reg16Kind, Reg8Kind, Registers},
     CPU,
 };
 
 pub use adds::{adc, add, add_hl};
-pub use and::and;
+pub use and::And;
+pub use bit::bit;
 pub use call::{call, ret};
 pub use jumps::{jp, jr};
 pub use lds::ld;
 pub use or::or;
 pub use stack::{pop, push};
-pub use subs::{sbc, sub, cp};
+pub use subs::{cp, sbc, sub};
 pub use xor::xor;
-pub use bit::bit;
+
+pub trait Executor {
+    fn run(&mut self, instr: Instr) -> ExecRes;
+}
+
+pub struct ExecRes {
+    pub ticks: u8,
+    pub length: u16,
+    pub instr: Instr,
+    pub trace: Option<(u16, u16)>,
+}
 
 pub fn should_jump(cpu: &CPU, op: Operand) -> bool {
     match op {

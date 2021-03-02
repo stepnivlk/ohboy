@@ -1,4 +1,8 @@
-use crate::{executors::op_to_u8_reg, instruction::{Instr, Operand}, CPU};
+use crate::{
+    executors::op_to_u8_reg,
+    instruction::{Instr, Operand},
+    CPU,
+};
 
 pub fn sub(cpu: &mut CPU, instr: Instr) -> Option<Instr> {
     let val = op_to_u8_reg(&instr.rhs?, &cpu.registers);
@@ -23,8 +27,11 @@ pub fn cp(cpu: &mut CPU, instr: Instr) -> Option<Instr> {
         Some(Operand::U8) => {
             cpu.pc.add(1);
             cpu.read_next_byte()
-        },
-        _ => panic!("[{:X} | {}] unsupported operand {:?}", instr.pos, instr.tag, instr.rhs),
+        }
+        _ => panic!(
+            "[{:X} | {}] unsupported operand {:?}",
+            instr.pos, instr.tag, instr.rhs
+        ),
     };
 
     let a = cpu.registers.a;
