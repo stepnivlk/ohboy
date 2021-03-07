@@ -1,19 +1,37 @@
-use crate::{executors::op_to_u8_reg, instruction::Instr, CPU};
+use crate::{
+    executors::{op_to_u8_reg, ExecRes, Executor},
+    instruction::Instr,
+    CPU,
+};
 
-pub fn and(cpu: &mut CPU, instr: Instr) -> Option<Instr> {
-    let val = op_to_u8_reg(&instr.rhs?, &cpu.registers);
+pub struct And<'a>(pub &'a mut CPU);
 
-    let new_value = cpu.registers.a & val;
+impl<'a> And<'a> {
+    fn set_flags(&mut self, new_val: u8) {
+        self.0.registers.f.zero = new_val == 0;
+        self.0.registers.f.subtract = false;
+        self.0.registers.f.half_carry = true;
+        self.0.registers.f.carry = false;
+    }
+}
 
-    cpu.registers.f.zero = new_value == 0;
-    cpu.registers.f.subtract = false;
-    cpu.registers.f.half_carry = true;
-    cpu.registers.f.carry = false;
+impl<'a> Executor for And<'a> {
+    fn run(&mut self, instr: Instr) -> ExecRes {
+        let val = op_to_u8_reg(&instr.rhs.unwrap(), &self.0.registers);
 
-    cpu.registers.a = new_value;
-    cpu.pc.add(1);
+        let new_val = self.0.registers.a & val;
 
-    Some(instr)
+        self.set_flags(new_val);
+
+        self.0.registers.a = new_val;
+
+        ExecRes {
+            ticks: 4,
+            length: 1,
+            instr,
+            trace: None,
+        }
+    }
 }
 
 #[cfg(test)]

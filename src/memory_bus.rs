@@ -41,12 +41,13 @@ const Z_RAM_START: usize = 0xFF80;
 const Z_RAM_END: usize = 0xFFFE;
 const Z_RAM_SIZE: usize = Z_RAM_END - Z_RAM_START + 1;
 
-
 pub struct MemoryBus {
     in_bios: bool,
     boot_rom: [u8; BOOT_ROM_SIZE],
     rom_bank_0: [u8; ROM_BANK_0_SIZE],
     rom_bank_n: [u8; ROM_BANK_N_SIZE],
+    e_ram: [u8; E_RAM_SIZE],
+    w_ram: [u8; W_RAM_SIZE],
     z_ram: [u8; Z_RAM_SIZE],
     // TODO: Move to gpu
     pub v_ram: [u8; V_RAM_SIZE],
@@ -70,6 +71,8 @@ impl MemoryBus {
             rom_bank_n: [0; ROM_BANK_N_SIZE],
             // TODO: Use GPU instance.
             v_ram: [0; V_RAM_SIZE],
+            e_ram: [0; E_RAM_SIZE],
+            w_ram: [0; W_RAM_SIZE],
             z_ram: [0; Z_RAM_SIZE],
         }
     }
@@ -79,43 +82,41 @@ impl MemoryBus {
 
         match address {
             BOOT_ROM_START..=BOOT_ROM_END => {
+                return self.boot_rom[address];
+
                 if self.in_bios {
                     if address < 0x0100 {
-                        return self.boot_rom[address]
+                        return self.boot_rom[address];
                     // TODO: Check if PC points to 0x0100 here
                     // This means we're first time behind the boot (0xFF)
                     // How can be PC passed though?
                     // Can there be some simpler approach without need for mut?
+                    // CPU should tell membus when to switch
                     } else if false {
                         // self.in_bios = false;
                     }
                 };
 
-
                 self.rom_bank_0[address]
-            },
-            ROM_BANK_0_START..=ROM_BANK_0_END => {
-                self.rom_bank_0[address]
-            },
+            }
+            ROM_BANK_0_START..=ROM_BANK_0_END => self.rom_bank_0[address],
             ROM_BANK_N_START..=ROM_BANK_N_END => {
                 panic!("ROM N read at {:x}", address);
-            },
+            }
             IO_REGS_START..=IO_REGS_END => {
                 if address == 0xFF44 {
                     panic!("FF41 Bit 4 - Mode 1 V-Blank Interrupt");
                 }
                 // TODO: Read IO
                 0
-            },
-            V_RAM_START..=V_RAM_END => {
-                self.v_ram[address - V_RAM_START]
-            },
-            Z_RAM_START..=Z_RAM_END => {
-                self.z_ram[address - Z_RAM_START]
-            },
+            }
+            E_RAM_START..=E_RAM_END => self.e_ram[address - E_RAM_START],
+            W_RAM_START..=W_RAM_END => self.w_ram[address - W_RAM_START],
+            V_RAM_START..=V_RAM_END => self.v_ram[address - V_RAM_START],
+            Z_RAM_START..=Z_RAM_END => self.z_ram[address - Z_RAM_START],
             _ => {
                 panic!("unimplemented mem read at: 0x{:x}", address);
-            },
+            }
         }
     }
 
@@ -125,19 +126,25 @@ impl MemoryBus {
         match address {
             ROM_BANK_0_START..=ROM_BANK_0_END => {
                 self.rom_bank_0[address] = byte;
-            },
+            }
             IO_REGS_START..=IO_REGS_END => {
                 // TODO: Write IO
-            },
+            }
+            E_RAM_START..=E_RAM_END => {
+                self.e_ram[address - E_RAM_START] = byte;
+            }
+            W_RAM_START..=W_RAM_END => {
+                self.w_ram[address - W_RAM_START] = byte;
+            }
             V_RAM_START..=V_RAM_END => {
                 self.v_ram[address - V_RAM_START] = byte;
-            },
+            }
             Z_RAM_START..=Z_RAM_END => {
                 self.z_ram[address - Z_RAM_START] = byte;
-            },
+            }
             _ => {
                 panic!("unimplemented mem write at: 0x{:x}", address);
-            },
+            }
         }
     }
 }

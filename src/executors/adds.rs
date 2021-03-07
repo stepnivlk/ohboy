@@ -1,8 +1,39 @@
 use crate::{
-    executors::{op_to_u16_reg, op_to_u8_reg},
+    executors::{op_to_u16_reg, op_to_u8_reg, ExecRes, Executor},
     instruction::Instr,
     CPU,
 };
+
+pub struct Add<'a>(pub &'a mut CPU);
+
+impl<'a> Add<'a> {
+    fn set_flags(&mut self, val: u8, carry: bool) {
+        self.0.registers.f.zero = val == 0;
+        self.0.registers.f.subtract = false;
+        // TODO: Incorrect
+        self.0.registers.f.half_carry = val > 0xF;
+        self.0.registers.f.carry = carry;
+    }
+}
+
+impl<'a> Executor for Add<'a> {
+    fn run(&mut self, instr: Instr) -> ExecRes {
+        let val = op_to_u8_reg(&instr.rhs.unwrap(), &self.0.registers);
+        let (new_val, carry) = self.0.registers.a.overflowing_add(val);
+
+        self.set_flags(val, carry);
+
+        self.0.registers.a = new_val;
+
+        // TODO:
+        ExecRes {
+            ticks: 4,
+            length: 1,
+            instr,
+            trace: None,
+        }
+    }
+}
 
 pub fn add(cpu: &mut CPU, instr: Instr) -> Option<Instr> {
     let val = op_to_u8_reg(&instr.rhs?, &cpu.registers);
