@@ -11,11 +11,11 @@ mod xor;
 
 use crate::{
     instruction::{CondKind, Instr, Operand},
-    registers::{Reg16Kind, Reg8Kind, Registers},
+    registers::{Reg16Kind, Reg8Kind, Registers, FlagsRegister},
     CPU,
 };
 
-pub use adds::{adc, add, add_hl};
+pub use adds::{Adc, Add, add_hl};
 pub use and::And;
 pub use bit::bit;
 pub use call::{call, ret};
@@ -26,8 +26,24 @@ pub use stack::{pop, push};
 pub use subs::{cp, sbc, sub};
 pub use xor::xor;
 
-pub trait Executor {
+pub trait Exec {
+    type FlagsData;
+
+    // fn run('a mut self, instr: Instr) -> ExecRes;
     fn run(&mut self, instr: Instr) -> ExecRes;
+
+    fn res(&self, ticks: u8, length: u16, instr: Instr) -> ExecRes {
+        ExecRes {
+            ticks,
+            length,
+            instr,
+            trace: None,
+        }
+    }
+
+    fn next_flags(&self, data: Self::FlagsData) -> Option<FlagsRegister> {
+        None
+    }
 }
 
 pub struct ExecRes {

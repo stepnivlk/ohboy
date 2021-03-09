@@ -1,88 +1,101 @@
 use crate::{
-    executors::{op_to_u16_reg, op_to_u8_reg, ExecRes, Executor},
+    microcode::{op_to_u16_reg, op_to_u8_reg, ExecRes, Exec},
     instruction::Instr,
+    registers::FlagsRegister,
     CPU,
 };
 
-pub struct Add<'a>(pub &'a mut CPU);
+type FlagsData = (u8, bool);
 
-impl<'a> Add<'a> {
-    fn set_flags(&mut self, val: u8, carry: bool) {
-        self.0.registers.f.zero = val == 0;
-        self.0.registers.f.subtract = false;
+fn next_flags(data: FlagsData) -> Option<FlagsRegister> {
+    Some(FlagsRegister {
+        zero: data.0 == 0,
+        subtract: false,
         // TODO: Incorrect
-        self.0.registers.f.half_carry = val > 0xF;
-        self.0.registers.f.carry = carry;
-    }
+        half_carry: data.0 > 0xF,
+        carry: data.1,
+    })
 }
 
-impl<'a> Executor for Add<'a> {
+pub struct Add<'a>(pub &'a mut CPU);
+
+impl Exec for Add<'_> {
+    type FlagsData = FlagsData;
+
     fn run(&mut self, instr: Instr) -> ExecRes {
         let val = op_to_u8_reg(&instr.rhs.unwrap(), &self.0.registers);
         let (new_val, carry) = self.0.registers.a.overflowing_add(val);
 
-        self.set_flags(val, carry);
+        let flags = self.next_flags((new_val, carry));
+
+        self.next_flags((new_val, carry)).map(|f| {
+            self.0.registers.f = f
+        });
+
+        // TODO:
+        self.res(4, 1, instr)
+    }
+
+    fn next_flags(&self, data: Self::FlagsData) -> Option<FlagsRegister> {
+        next_flags(data)
+    }
+}
+
+pub struct Adc<'a>(pub &'a mut CPU);
+
+impl Exec for Adc<'_> {
+    type FlagsData = FlagsData;
+
+    fn run(&mut self, instr: Instr) -> ExecRes {
+        let cpu = &self.0;
+
+        let val = op_to_u8_reg(&instr.rhs.unwrap(), &cpu.registers);
+        let additinal_carry = if cpu.registers.f.carry { 1 } else { 0 };
+        let (mid_value, mid_carry) = cpu.registers.a.overflowing_add(val);
+        let (new_val, carry) = mid_value.overflowing_add(additinal_carry);
+
+        self.next_flags((new_val, mid_carry || carry)).map(|f| {
+            self.0.registers.f = f
+        });
 
         self.0.registers.a = new_val;
 
         // TODO:
-        ExecRes {
-            ticks: 4,
-            length: 1,
-            instr,
-            trace: None,
-        }
+        self.res(4, 1, instr)
+    }
+
+    fn next_flags(&self, data: Self::FlagsData) -> Option<FlagsRegister> {
+        next_flags(data)
     }
 }
 
-pub fn add(cpu: &mut CPU, instr: Instr) -> Option<Instr> {
-    let val = op_to_u8_reg(&instr.rhs?, &cpu.registers);
-    let (new_val, carry) = cpu.registers.a.overflowing_add(val);
+pub struct AddHl<'a>(pub &'a mut CPU);
 
-    cpu.registers.f.zero = val == 0;
-    cpu.registers.f.subtract = false;
-    // TODO: Incorrect
-    cpu.registers.f.half_carry = val > 0xF;
-    cpu.registers.f.carry = carry;
+impl Exec for AddHl<'_> {
+    type FlagsData = (FlagsRegister, u16, bool);
 
-    cpu.registers.a = new_val;
-    cpu.pc.add(1);
+    fn run(&mut self, instr: Instr) -> ExecRes {
+        let val = op_to_u16_reg(&instr.rhs.unwrap(), &self.0.registers);
+        let curr_hl = self.0.registers.get_hl();
+        let (new_value, carry) = curr_hl.overflowing_add(val);
 
-    Some(instr)
-}
+        self.0.registers.set_hl(new_value);
+        self.next_flags((self.0.registers.f, new_value, carry)).map(|f| {
+            self.0.registers.f = f
+        });
 
-pub fn adc(cpu: &mut CPU, instr: Instr) -> Option<Instr> {
-    let val = op_to_u8_reg(&instr.rhs?, &cpu.registers);
-    let additinal_carry = if cpu.registers.f.carry { 1 } else { 0 };
-    let (mid_value, mid_carry) = cpu.registers.a.overflowing_add(val);
-    let (new_value, carry) = mid_value.overflowing_add(additinal_carry);
+        self.res(8, 1, instr)
+    }
 
-    cpu.registers.f.zero = new_value == 0;
-    cpu.registers.f.subtract = false;
-    // TODO: Incorrect
-    cpu.registers.f.half_carry = new_value > 0xF;
-    cpu.registers.f.carry = mid_carry || carry;
-
-    cpu.registers.a = new_value;
-    cpu.pc.add(1);
-
-    Some(instr)
-}
-
-pub fn add_hl(cpu: &mut CPU, instr: Instr) -> Option<Instr> {
-    let val = op_to_u16_reg(&instr.rhs?, &cpu.registers);
-    let curr_hl = cpu.registers.get_hl();
-    let (new_value, carry) = curr_hl.overflowing_add(val);
-
-    cpu.registers.f.carry = carry;
-    cpu.registers.f.subtract = false;
-    // TODO: Incorrect
-    cpu.registers.f.half_carry = val > 0xFF;
-
-    cpu.registers.set_hl(new_value);
-    cpu.pc.add(1);
-
-    Some(instr)
+    fn next_flags(&self, data: Self::FlagsData) -> Option<FlagsRegister> {
+        Some(FlagsRegister {
+            zero: data.0.zero,
+            carry: data.2,
+            subtract: false,
+            // TODO: Incorrect
+            half_carry: data.1 > 0xFF,
+        })
+    }
 }
 
 #[cfg(test)]

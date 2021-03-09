@@ -1,6 +1,6 @@
 extern crate minifb;
 
-mod executors;
+mod microcode;
 mod gpu;
 mod instruction;
 mod memory_bus;
@@ -10,7 +10,7 @@ use minifb::{Key, Window, WindowOptions};
 
 use instruction::{Instr, InstrKind, Operand};
 use memory_bus::MemoryBus;
-use registers::{Reg16Kind, Reg8Kind, Registers};
+use registers::{Reg16Kind, Registers};
 
 struct Pc(u16);
 
@@ -93,7 +93,7 @@ impl CPU {
     }
 
     fn execute(&mut self, instr: Instr) -> Option<Instr> {
-        use executors::*;
+        use microcode::*;
 
         if self.state == State::Halted {
             return None;
@@ -101,7 +101,25 @@ impl CPU {
 
         match instr.id {
             InstrKind::And => {
-                let res = executors::And(self).run(instr);
+                let res = And(self).run(instr);
+
+                self.pc.add(res.length);
+                self.clock.add(res.ticks);
+
+                Some(res.instr)
+            }
+
+            InstrKind::Add => {
+                let res = Add(self).run(instr);
+
+                self.pc.add(res.length);
+                self.clock.add(res.ticks);
+
+                Some(res.instr)
+            }
+
+            InstrKind::Adc => {
+                let res = Adc(self).run(instr);
 
                 self.pc.add(res.length);
                 self.clock.add(res.ticks);
@@ -121,37 +139,33 @@ impl CPU {
 
                 Some(instr)
             }
-
-            InstrKind::Add => add(self, instr),
-
-            InstrKind::Adc => adc(self, instr),
-
-            InstrKind::AddHl => add_hl(self, instr),
-
-            InstrKind::Sub => sub(self, instr),
-
-            InstrKind::Sbc => sbc(self, instr),
-
-            InstrKind::Or => or(self, instr),
-
-            InstrKind::Xor => xor(self, instr),
-
-            InstrKind::Jp => jp(self, instr),
-
-            InstrKind::Jr => jr(self, instr),
-
-            InstrKind::Push => push(self, instr),
-
-            InstrKind::Pop => pop(self, instr),
-
-            InstrKind::Call => call(self, instr),
-
-            InstrKind::Ret => ret(self, instr),
-
-            InstrKind::Ld => ld(self, instr),
-
-            InstrKind::Cp => cp(self, instr),
-
+//
+            // InstrKind::AddHl => add_hl(self, instr),
+//
+            // InstrKind::Sub => sub(self, instr),
+//
+            // InstrKind::Sbc => sbc(self, instr),
+//
+            // InstrKind::Or => or(self, instr),
+//
+            // InstrKind::Xor => xor(self, instr),
+//
+            // InstrKind::Jp => jp(self, instr),
+//
+            // InstrKind::Jr => jr(self, instr),
+//
+            // InstrKind::Push => push(self, instr),
+//
+            // InstrKind::Pop => pop(self, instr),
+//
+            // InstrKind::Call => call(self, instr),
+//
+            // InstrKind::Ret => ret(self, instr),
+//
+            // InstrKind::Ld => ld(self, instr),
+//
+            // InstrKind::Cp => cp(self, instr),
+//
             InstrKind::LdWord => {
                 let word = match instr.rhs {
                     Some(Operand::U16) => self.read_next_word(),
@@ -348,7 +362,7 @@ impl CPU {
                 Some(instr)
             }
 
-            InstrKind::Bit => bit(self, instr),
+            // InstrKind::Bit => bit(self, instr),
 
             _ => {
                 panic!("{}: UNIMPLEMENTED", instr);
