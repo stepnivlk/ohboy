@@ -1,4 +1,4 @@
-#[derive(Debug)]
+#[derive(Debug, Copy, Clone)]
 pub struct FlagsRegister {
     pub zero: bool,
     pub subtract: bool,

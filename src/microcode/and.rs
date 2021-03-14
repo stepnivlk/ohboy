@@ -1,36 +1,35 @@
 use crate::{
-    executors::{op_to_u8_reg, ExecRes, Executor},
+    microcode::{op_to_u8_reg, ExecRes, Exec},
     instruction::Instr,
+    registers::FlagsRegister,
     CPU,
 };
 
 pub struct And<'a>(pub &'a mut CPU);
 
-impl<'a> And<'a> {
-    fn set_flags(&mut self, new_val: u8) {
-        self.0.registers.f.zero = new_val == 0;
-        self.0.registers.f.subtract = false;
-        self.0.registers.f.half_carry = true;
-        self.0.registers.f.carry = false;
-    }
-}
+impl Exec for And<'_> {
+    type FlagsData = u8;
 
-impl<'a> Executor for And<'a> {
     fn run(&mut self, instr: Instr) -> ExecRes {
         let val = op_to_u8_reg(&instr.rhs.unwrap(), &self.0.registers);
 
         let new_val = self.0.registers.a & val;
 
-        self.set_flags(new_val);
-
         self.0.registers.a = new_val;
+        self.next_flags(new_val).map(|f| {
+            self.0.registers.f = f
+        });
 
-        ExecRes {
-            ticks: 4,
-            length: 1,
-            instr,
-            trace: None,
-        }
+        self.res(4, 1, instr)
+    }
+
+    fn next_flags(&self, data: Self::FlagsData) -> Option<FlagsRegister> {
+        Some(FlagsRegister {
+            zero: data == 0,
+            subtract: false,
+            half_carry: true,
+            carry: false,
+        })
     }
 }
 
