@@ -2,35 +2,42 @@ mod adds;
 mod and;
 mod bit;
 mod call;
+mod dec;
+mod inc;
 mod jumps;
-mod lds;
+mod ld;
+mod ld_word;
 mod or;
+mod rot;
 mod stack;
 mod subs;
 mod xor;
 
 use crate::{
     instruction::{CondKind, Instr, Operand},
-    registers::{Reg16Kind, Reg8Kind, Registers, FlagsRegister},
+    registers::{FlagsRegister, Reg16Kind, Reg8Kind, Registers},
     CPU,
 };
 
-pub use adds::{Adc, Add, add_hl};
+pub use adds::{Adc, Add, AddHl};
 pub use and::And;
-pub use bit::bit;
-pub use call::{call, ret};
-pub use jumps::{jp, jr};
-pub use lds::ld;
-pub use or::or;
-pub use stack::{pop, push};
-pub use subs::{cp, sbc, sub};
-pub use xor::xor;
+pub use bit::Bit;
+pub use call::{Call, Ret};
+pub use dec::Dec;
+pub use inc::Inc;
+pub use jumps::{Jp, Jr};
+pub use ld::Ld;
+pub use ld_word::LdWord;
+pub use or::Or;
+pub use rot::{Rot, RotA};
+pub use stack::{Pop, Push};
+pub use subs::{Cp, Sbc, Sub};
+pub use xor::Xor;
 
 pub trait Exec {
     type FlagsData;
 
-    // fn run('a mut self, instr: Instr) -> ExecRes;
-    fn run(&mut self, instr: Instr) -> ExecRes;
+    fn run(&mut self, instr: Instr) -> Option<ExecRes>;
 
     fn res(&self, ticks: u8, length: u16, instr: Instr) -> ExecRes {
         ExecRes {
@@ -54,49 +61,57 @@ pub struct ExecRes {
 }
 
 pub fn should_jump(cpu: &CPU, op: Operand) -> bool {
+    use Operand::*;
+
     match op {
-        Operand::Cond(CondKind::Always) => true,
-        Operand::Cond(CondKind::NotCarry) => !cpu.registers.f.carry,
-        Operand::Cond(CondKind::NotZero) => !cpu.registers.f.zero,
-        Operand::Cond(CondKind::Carry) => cpu.registers.f.carry,
-        Operand::Cond(CondKind::Zero) => cpu.registers.f.zero,
+        Cond(CondKind::Always) => true,
+        Cond(CondKind::NotCarry) => !cpu.registers.f.carry,
+        Cond(CondKind::NotZero) => !cpu.registers.f.zero,
+        Cond(CondKind::Carry) => cpu.registers.f.carry,
+        Cond(CondKind::Zero) => cpu.registers.f.zero,
         _ => panic!("Mismatched operand {:?}", op),
     }
 }
 
 pub fn op_to_u8_reg(op: &Operand, registers: &Registers) -> u8 {
+    use Operand::*;
+
     match op {
-        Operand::Reg8(Reg8Kind::A) => registers.a,
-        Operand::Reg8(Reg8Kind::B) => registers.b,
-        Operand::Reg8(Reg8Kind::C) => registers.c,
-        Operand::Reg8(Reg8Kind::D) => registers.d,
-        Operand::Reg8(Reg8Kind::E) => registers.e,
-        Operand::Reg8(Reg8Kind::H) => registers.h,
-        Operand::Reg8(Reg8Kind::L) => registers.l,
+        Reg8(Reg8Kind::A) => registers.a,
+        Reg8(Reg8Kind::B) => registers.b,
+        Reg8(Reg8Kind::C) => registers.c,
+        Reg8(Reg8Kind::D) => registers.d,
+        Reg8(Reg8Kind::E) => registers.e,
+        Reg8(Reg8Kind::H) => registers.h,
+        Reg8(Reg8Kind::L) => registers.l,
         _ => panic!("Unsupported operand: {:?}", op),
     }
 }
 
 pub fn op_to_u16_reg(op: &Operand, registers: &Registers) -> u16 {
+    use Operand::*;
+
     match op {
-        Operand::Reg16(Reg16Kind::SP) => {
+        Reg16(Reg16Kind::SP) => {
             panic!("not implemented");
         }
-        Operand::Reg16(Reg16Kind::BC) => registers.get_bc(),
-        Operand::Reg16(Reg16Kind::DE) => registers.get_de(),
-        Operand::Reg16(Reg16Kind::HL) => registers.get_hl(),
+        Reg16(Reg16Kind::BC) => registers.get_bc(),
+        Reg16(Reg16Kind::DE) => registers.get_de(),
+        Reg16(Reg16Kind::HL) => registers.get_hl(),
         _ => panic!("Unsupported operand: {:?}", op),
     }
 }
 
 pub fn op_to_u16_reg_w(op: &Operand, registers: &mut Registers, val: u16) {
+    use Operand::*;
+
     match op {
-        Operand::Reg16(Reg16Kind::SP) => {
+        Reg16(Reg16Kind::SP) => {
             panic!("not implemented");
         }
-        Operand::Reg16(Reg16Kind::BC) => registers.set_bc(val),
-        Operand::Reg16(Reg16Kind::DE) => registers.set_de(val),
-        Operand::Reg16(Reg16Kind::HL) => registers.set_hl(val),
+        Reg16(Reg16Kind::BC) => registers.set_bc(val),
+        Reg16(Reg16Kind::DE) => registers.set_de(val),
+        Reg16(Reg16Kind::HL) => registers.set_hl(val),
         _ => panic!("Unsupported operand: {:?}", op),
     }
 }

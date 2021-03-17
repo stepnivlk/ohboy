@@ -1,6 +1,6 @@
 use crate::{
-    microcode::{op_to_u8_reg, Exec, ExecRes},
     instruction::{Instr, Operand},
+    microcode::{op_to_u8_reg, Exec, ExecRes},
     registers::FlagsRegister,
     CPU,
 };
@@ -30,19 +30,24 @@ impl Bit<'_> {
 impl Exec for Bit<'_> {
     type FlagsData = (FlagsRegister, u8);
 
-    fn run(&mut self, instr: Instr) -> ExecRes {
+    fn run(&mut self, instr: Instr) -> Option<ExecRes> {
         let bit_position = self.bit_position(&instr);
         let val = self.val(&instr);
 
         let bit = (val >> bit_position) & 0b1;
 
-        self.next_flags((self.0.registers.f, bit)).map(|f| {
-            self.0.registers.f = f
-        });
+        self.next_flags((self.0.registers.f, bit))
+            .map(|f| self.0.registers.f = f);
 
-        instr.trace((bit as u16, val as u16));
+        self.0.pc.add(2);
+        self.0.clock.add(8);
 
-        self.res(8, self.0.pc.get() + 2, instr)
+        Some(ExecRes {
+            ticks: 8,
+            length: 2,
+            instr,
+            trace: Some((bit as u16, val as u16)),
+        })
     }
 
     fn next_flags(&self, data: Self::FlagsData) -> Option<FlagsRegister> {

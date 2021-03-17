@@ -1,6 +1,6 @@
 use crate::{
-    microcode::{op_to_u8_reg, ExecRes, Exec},
     instruction::Instr,
+    microcode::{op_to_u8_reg, Exec, ExecRes},
     registers::FlagsRegister,
     CPU,
 };
@@ -10,17 +10,23 @@ pub struct And<'a>(pub &'a mut CPU);
 impl Exec for And<'_> {
     type FlagsData = u8;
 
-    fn run(&mut self, instr: Instr) -> ExecRes {
+    fn run(&mut self, instr: Instr) -> Option<ExecRes> {
         let val = op_to_u8_reg(&instr.rhs.unwrap(), &self.0.registers);
 
         let new_val = self.0.registers.a & val;
 
         self.0.registers.a = new_val;
-        self.next_flags(new_val).map(|f| {
-            self.0.registers.f = f
-        });
+        self.next_flags(new_val).map(|f| self.0.registers.f = f);
 
-        self.res(4, 1, instr)
+        self.0.pc.add(1);
+        self.0.clock.add(4);
+
+        Some(ExecRes {
+            ticks: 4,
+            length: 1,
+            instr,
+            trace: None,
+        })
     }
 
     fn next_flags(&self, data: Self::FlagsData) -> Option<FlagsRegister> {

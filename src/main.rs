@@ -1,15 +1,16 @@
 extern crate minifb;
 
-mod microcode;
 mod gpu;
 mod instruction;
 mod memory_bus;
+mod microcode;
 mod registers;
 
 use minifb::{Key, Window, WindowOptions};
 
 use instruction::{Instr, InstrKind, Operand};
 use memory_bus::MemoryBus;
+use microcode::ExecRes;
 use registers::{Reg16Kind, Registers};
 
 struct Pc(u16);
@@ -89,10 +90,12 @@ impl CPU {
 
         let res = self.execute(instruction);
 
-        println!("{}", &res.unwrap());
+        res.map(|r| {
+            println!("{}", r.instr);
+        });
     }
 
-    fn execute(&mut self, instr: Instr) -> Option<Instr> {
+    fn execute(&mut self, instr: Instr) -> Option<ExecRes> {
         use microcode::*;
 
         if self.state == State::Halted {
@@ -100,269 +103,71 @@ impl CPU {
         }
 
         match instr.id {
-            InstrKind::And => {
-                let res = And(self).run(instr);
+            InstrKind::And => And(self).run(instr),
+            InstrKind::Add => Add(self).run(instr),
 
-                self.pc.add(res.length);
-                self.clock.add(res.ticks);
-
-                Some(res.instr)
-            }
-
-            InstrKind::Add => {
-                let res = Add(self).run(instr);
-
-                self.pc.add(res.length);
-                self.clock.add(res.ticks);
-
-                Some(res.instr)
-            }
-
-            InstrKind::Adc => {
-                let res = Adc(self).run(instr);
-
-                self.pc.add(res.length);
-                self.clock.add(res.ticks);
-
-                Some(res.instr)
-            }
+            InstrKind::Adc => Adc(self).run(instr),
 
             InstrKind::Nop => {
                 self.pc.add(1);
                 self.clock.add(4);
 
-                Some(instr)
+                Some(ExecRes {
+                    ticks: 4,
+                    length: 1,
+                    instr,
+                    trace: None,
+                })
             }
 
             InstrKind::Halt => {
                 self.state = State::Halted;
 
-                Some(instr)
-            }
-//
-            // InstrKind::AddHl => add_hl(self, instr),
-//
-            // InstrKind::Sub => sub(self, instr),
-//
-            // InstrKind::Sbc => sbc(self, instr),
-//
-            // InstrKind::Or => or(self, instr),
-//
-            // InstrKind::Xor => xor(self, instr),
-//
-            // InstrKind::Jp => jp(self, instr),
-//
-            // InstrKind::Jr => jr(self, instr),
-//
-            // InstrKind::Push => push(self, instr),
-//
-            // InstrKind::Pop => pop(self, instr),
-//
-            // InstrKind::Call => call(self, instr),
-//
-            // InstrKind::Ret => ret(self, instr),
-//
-            // InstrKind::Ld => ld(self, instr),
-//
-            // InstrKind::Cp => cp(self, instr),
-//
-            InstrKind::LdWord => {
-                let word = match instr.rhs {
-                    Some(Operand::U16) => self.read_next_word(),
-                    Some(Operand::Reg16(Reg16Kind::HL)) => {
-                        self.registers.get_hl()
-                    }
-                    _ => {
-                        panic!("{}: Mismatched operand {:?}", instr, instr.rhs)
-                    }
-                };
-
-                match instr.lhs {
-                    Some(Operand::Reg16(Reg16Kind::SP)) => self.sp = word,
-                    Some(Operand::Reg16(Reg16Kind::BC)) => {
-                        self.registers.set_bc(word)
-                    }
-                    Some(Operand::Reg16(Reg16Kind::DE)) => {
-                        self.registers.set_de(word)
-                    }
-                    Some(Operand::Reg16(Reg16Kind::HL)) => {
-                        self.registers.set_hl(word)
-                    }
-                    _ => {
-                        panic!("{}: Mismatched operand {:?}", instr, instr.rhs)
-                    }
-                };
-
-                self.pc.add(3);
-
-                Some(instr)
+                Some(ExecRes {
+                    ticks: 4,
+                    length: 1,
+                    instr,
+                    trace: None,
+                })
             }
 
-            InstrKind::Inc => {
-                match instr.rhs {
-                    Some(Operand::Reg8(kind)) => {
-                        let orig_val = self.registers.get_8(&kind);
-                        let val = orig_val.wrapping_add(1);
+            InstrKind::AddHl => AddHl(self).run(instr),
 
-                        self.registers.set_8(&kind, val);
+            InstrKind::Sub => Sub(self).run(instr),
 
-                        self.registers.f.zero = val == 0;
-                        self.registers.f.subtract = false;
-                        self.registers.f.half_carry = orig_val & 0xF == 0xF;
-                    }
+            InstrKind::Sbc => Sbc(self).run(instr),
 
-                    Some(Operand::Reg16(kind)) => {
-                        let val = self.registers.get_16(&kind).wrapping_add(1);
+            InstrKind::Or => Or(self).run(instr),
 
-                        self.registers.set_16(&kind, val);
-                    }
+            InstrKind::Xor => Xor(self).run(instr),
 
-                    Some(Operand::Reg16Indir(kind)) => {
-                        let addr = self.registers.get_16(&kind);
+            InstrKind::Jp => Jp(self).run(instr),
 
-                        let orig_val = self.bus.read_byte(addr);
-                        let val = orig_val.wrapping_add(1);
+            InstrKind::Jr => Jr(self).run(instr),
 
-                        self.bus.write_byte(addr, val);
+            InstrKind::Push => Push(self).run(instr),
 
-                        self.registers.f.zero = val == 0;
-                        self.registers.f.subtract = false;
-                        self.registers.f.half_carry = orig_val & 0xF == 0xF;
-                    }
+            InstrKind::Pop => Pop(self).run(instr),
 
-                    _ => {
-                        panic!("{}: Mismatched operand {:?}", instr, instr.rhs)
-                    }
-                };
+            InstrKind::Call => Call(self).run(instr),
 
-                self.pc.add(1);
+            InstrKind::Ret => Ret(self).run(instr),
 
-                Some(instr)
-            }
+            InstrKind::Ld => Ld(self).run(instr),
 
-            InstrKind::Dec => {
-                match instr.rhs {
-                    Some(Operand::Reg8(kind)) => {
-                        let orig_val = self.registers.get_8(&kind);
-                        let val = orig_val.wrapping_sub(1);
+            InstrKind::Cp => Cp(self).run(instr),
 
-                        self.registers.set_8(&kind, val);
+            InstrKind::LdWord => LdWord(self).run(instr),
 
-                        self.registers.f.zero = val == 0;
-                        self.registers.f.subtract = true;
-                        self.registers.f.half_carry = orig_val & 0xF == 0x0;
-                    }
+            InstrKind::Inc => Inc(self).run(instr),
 
-                    Some(Operand::Reg16(kind)) => {
-                        let val = self.registers.get_16(&kind).wrapping_sub(1);
+            InstrKind::Dec => Dec(self).run(instr),
 
-                        self.registers.set_16(&kind, val);
-                    }
+            InstrKind::RotA => RotA(self).run(instr),
 
-                    Some(Operand::Reg16Indir(kind)) => {
-                        let addr = self.registers.get_16(&kind);
+            InstrKind::Rot => Rot(self).run(instr),
 
-                        let orig_val = self.bus.read_byte(addr);
-                        let val = orig_val.wrapping_sub(1);
-
-                        self.bus.write_byte(addr, val);
-
-                        self.registers.f.zero = val == 0;
-                        self.registers.f.subtract = true;
-                        self.registers.f.half_carry = orig_val & 0xF == 0x0;
-                    }
-
-                    _ => {
-                        panic!("{}: Mismatched operand {:?}", instr, instr.rhs)
-                    }
-                };
-
-                self.pc.add(1);
-
-                Some(instr)
-            }
-
-            InstrKind::RotA => {
-                let mut val = self.registers.a;
-
-                match instr.rhs {
-                    Some(Operand::RotLeft) => {
-                        self.registers.f.carry = (val & 0x80) == 0x80;
-
-                        val = val << 1;
-                    }
-
-                    _ => {
-                        panic!("{}: Mismatched operand {:?}", instr, instr.rhs)
-                    }
-                }
-
-                match instr.post_op {
-                    Some(instruction::PostOp::CarryToB0) => {
-                        let carry = if self.registers.f.carry { 1 } else { 0 };
-
-                        val = val | carry;
-                    }
-
-                    _ => panic!(
-                        "{}: unsupported post_op {:?}",
-                        instr, instr.post_op
-                    ),
-                }
-
-                self.registers.a = val;
-
-                self.registers.f.zero = false;
-                self.registers.f.subtract = false;
-                self.registers.f.half_carry = false;
-
-                self.pc.add(1);
-
-                Some(instr)
-            }
-
-            InstrKind::Rot => {
-                let lhs = instr.lhs.unwrap();
-                let lhs = match lhs {
-                    Operand::Reg8(r) => r,
-                    _ => panic!(),
-                };
-
-                let mut val = self.registers.get_8(&lhs);
-
-                match instr.rhs {
-                    Some(Operand::RotLeft) => {
-                        val = val << 1;
-                    }
-
-                    _ => {
-                        panic!("{}: Mismatched operand {:?}", instr, instr.rhs)
-                    }
-                }
-
-                match instr.post_op {
-                    Some(instruction::PostOp::CarryToB0) => {
-                        let carry = if self.registers.f.carry { 1 } else { 0 };
-
-                        val = val | carry;
-                    }
-
-                    _ => panic!(
-                        "{}: unsupported post_op {:?}",
-                        instr, instr.post_op
-                    ),
-                }
-
-                self.registers.set_8(&lhs, val);
-
-                // TODO: Flags
-
-                self.pc.add(2);
-
-                Some(instr)
-            }
-
-            // InstrKind::Bit => bit(self, instr),
+            InstrKind::Bit => Bit(self).run(instr),
 
             _ => {
                 panic!("{}: UNIMPLEMENTED", instr);

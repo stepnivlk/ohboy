@@ -1,6 +1,6 @@
 use crate::{
-    microcode::{op_to_u16_reg, op_to_u8_reg, ExecRes, Exec},
     instruction::Instr,
+    microcode::{op_to_u16_reg, op_to_u8_reg, Exec, ExecRes},
     registers::FlagsRegister,
     CPU,
 };
@@ -22,18 +22,24 @@ pub struct Add<'a>(pub &'a mut CPU);
 impl Exec for Add<'_> {
     type FlagsData = FlagsData;
 
-    fn run(&mut self, instr: Instr) -> ExecRes {
+    fn run(&mut self, instr: Instr) -> Option<ExecRes> {
         let val = op_to_u8_reg(&instr.rhs.unwrap(), &self.0.registers);
         let (new_val, carry) = self.0.registers.a.overflowing_add(val);
 
         let flags = self.next_flags((new_val, carry));
 
-        self.next_flags((new_val, carry)).map(|f| {
-            self.0.registers.f = f
-        });
+        self.next_flags((new_val, carry))
+            .map(|f| self.0.registers.f = f);
 
-        // TODO:
-        self.res(4, 1, instr)
+        self.0.pc.add(1);
+        self.0.clock.add(4);
+
+        Some(ExecRes {
+            ticks: 4,
+            length: 1,
+            instr,
+            trace: None,
+        })
     }
 
     fn next_flags(&self, data: Self::FlagsData) -> Option<FlagsRegister> {
@@ -46,7 +52,7 @@ pub struct Adc<'a>(pub &'a mut CPU);
 impl Exec for Adc<'_> {
     type FlagsData = FlagsData;
 
-    fn run(&mut self, instr: Instr) -> ExecRes {
+    fn run(&mut self, instr: Instr) -> Option<ExecRes> {
         let cpu = &self.0;
 
         let val = op_to_u8_reg(&instr.rhs.unwrap(), &cpu.registers);
@@ -54,14 +60,20 @@ impl Exec for Adc<'_> {
         let (mid_value, mid_carry) = cpu.registers.a.overflowing_add(val);
         let (new_val, carry) = mid_value.overflowing_add(additinal_carry);
 
-        self.next_flags((new_val, mid_carry || carry)).map(|f| {
-            self.0.registers.f = f
-        });
+        self.next_flags((new_val, mid_carry || carry))
+            .map(|f| self.0.registers.f = f);
 
         self.0.registers.a = new_val;
 
-        // TODO:
-        self.res(4, 1, instr)
+        self.0.pc.add(1);
+        self.0.clock.add(4);
+
+        Some(ExecRes {
+            ticks: 4,
+            length: 1,
+            instr,
+            trace: None,
+        })
     }
 
     fn next_flags(&self, data: Self::FlagsData) -> Option<FlagsRegister> {
@@ -74,17 +86,24 @@ pub struct AddHl<'a>(pub &'a mut CPU);
 impl Exec for AddHl<'_> {
     type FlagsData = (FlagsRegister, u16, bool);
 
-    fn run(&mut self, instr: Instr) -> ExecRes {
+    fn run(&mut self, instr: Instr) -> Option<ExecRes> {
         let val = op_to_u16_reg(&instr.rhs.unwrap(), &self.0.registers);
         let curr_hl = self.0.registers.get_hl();
         let (new_value, carry) = curr_hl.overflowing_add(val);
 
         self.0.registers.set_hl(new_value);
-        self.next_flags((self.0.registers.f, new_value, carry)).map(|f| {
-            self.0.registers.f = f
-        });
+        self.next_flags((self.0.registers.f, new_value, carry))
+            .map(|f| self.0.registers.f = f);
 
-        self.res(8, 1, instr)
+        self.0.pc.add(1);
+        self.0.clock.add(8);
+
+        Some(ExecRes {
+            ticks: 8,
+            length: 1,
+            instr,
+            trace: None,
+        })
     }
 
     fn next_flags(&self, data: Self::FlagsData) -> Option<FlagsRegister> {

@@ -1,20 +1,38 @@
-use crate::{executors::op_to_u8_reg, instruction::Instr, CPU};
+use crate::{
+    instruction::Instr,
+    microcode::{op_to_u8_reg, Exec, ExecRes},
+    registers::FlagsRegister,
+    CPU,
+};
 
-pub fn or(cpu: &mut CPU, instr: Instr) -> Option<Instr> {
-    let val = op_to_u8_reg(&instr.rhs?, &cpu.registers);
+pub struct Or<'a>(pub &'a mut CPU);
 
-    let new_value = cpu.registers.a | val;
+impl Exec for Or<'_> {
+    type FlagsData = u8;
 
-    cpu.registers.f.zero = val == 0;
+    fn run(&mut self, instr: Instr) -> Option<ExecRes> {
+        let cpu = &mut self.0;
 
-    cpu.registers.f.subtract = false;
-    cpu.registers.f.half_carry = true;
-    cpu.registers.f.carry = false;
+        let val = op_to_u8_reg(&instr.rhs?, &cpu.registers);
 
-    cpu.registers.a = new_value;
-    cpu.pc.add(1);
+        let next_val = cpu.registers.a | val;
 
-    Some(instr)
+        cpu.registers.a = next_val;
+
+        cpu.pc.add(1);
+        cpu.clock.add(4);
+
+        None
+    }
+
+    fn next_flags(&self, data: Self::FlagsData) -> Option<FlagsRegister> {
+        Some(FlagsRegister {
+            zero: data == 0,
+            subtract: false,
+            half_carry: true,
+            carry: false,
+        })
+    }
 }
 
 #[cfg(test)]

@@ -1,6 +1,7 @@
 use crate::{
+    instruction::Instr,
     microcode::{should_jump, Exec, ExecRes},
-    instruction::Instr, CPU
+    CPU,
 };
 
 pub struct Call<'a>(pub &'a mut CPU);
@@ -8,35 +9,43 @@ pub struct Call<'a>(pub &'a mut CPU);
 impl Exec for Call<'_> {
     type FlagsData = ();
 
-    fn run(&mut self, instr: Instr) -> ExecRes {
-        let cpu = self.0;
+    fn run(&mut self, instr: Instr) -> Option<ExecRes> {
+        let mut next_pc = self.0.pc.get().wrapping_add(3);
 
-        let next_pc = cpu.pc.get().wrapping_add(3);
+        let mut ticks = 12;
 
-        let ticks = 12;
+        let trace;
 
-        if should_jump(cpu, instr.lhs.unwrap()) {
+        if should_jump(self.0, instr.lhs.unwrap()) {
             let hi = ((next_pc & 0xFF00) >> 8) as u8;
             let lo = (next_pc & 0xFF) as u8;
 
-            cpu.sp = cpu.sp.wrapping_sub(1);
-            cpu.bus.write_byte(cpu.sp, hi);
+            self.0.sp = self.0.sp.wrapping_sub(1);
+            self.0.bus.write_byte(self.0.sp, hi);
 
-            cpu.sp = cpu.sp.wrapping_sub(1);
-            cpu.bus.write_byte(cpu.sp, lo);
+            self.0.sp = self.0.sp.wrapping_sub(1);
+            self.0.bus.write_byte(self.0.sp, lo);
 
-            let jump_addr = cpu.read_next_word();
+            let jump_addr = self.0.read_next_word();
 
-            instr.trace((1, jump_addr));
+            trace = (1, jump_addr);
 
             next_pc = jump_addr;
 
             ticks = 24;
         } else {
-            instr.trace((0, next_pc));
+            trace = (0, next_pc);
         }
 
-        self.res(ticks, next_pc, instr)
+        self.0.pc.add(next_pc);
+        self.0.clock.add(ticks);
+
+        Some(ExecRes {
+            ticks,
+            length: next_pc,
+            instr,
+            trace: Some(trace),
+        })
     }
 }
 
@@ -45,16 +54,15 @@ pub struct Ret<'a>(pub &'a mut CPU);
 impl Exec for Ret<'_> {
     type FlagsData = ();
 
-    fn run(&mut self, instr: Instr) -> ExecRes {
-        let cpu = self.0;
-        let next_pc = cpu.pc.get();
+    fn run(&mut self, instr: Instr) -> Option<ExecRes> {
+        let mut next_pc = self.0.pc.get();
 
-        if should_jump(cpu, instr.lhs.unwrap()) {
-            let lo = cpu.bus.read_byte(cpu.sp) as u16;
-            cpu.sp = cpu.sp.wrapping_add(1);
+        if should_jump(self.0, instr.lhs.unwrap()) {
+            let lo = self.0.bus.read_byte(self.0.sp) as u16;
+            self.0.sp = self.0.sp.wrapping_add(1);
 
-            let hi = cpu.bus.read_byte(cpu.sp) as u16;
-            cpu.sp = cpu.sp.wrapping_add(1);
+            let hi = self.0.bus.read_byte(self.0.sp) as u16;
+            self.0.sp = self.0.sp.wrapping_add(1);
 
             let address = (hi << 8) | lo;
 
@@ -63,7 +71,14 @@ impl Exec for Ret<'_> {
             next_pc = next_pc + 1;
         }
 
-        self.res(16, next_pc, instr)
+        self.0.pc.add(next_pc);
+        self.0.clock.add(16);
+
+        Some(ExecRes {
+            ticks: 16,
+            length: next_pc,
+            instr,
+            trace: None,
+        })
     }
 }
- 
