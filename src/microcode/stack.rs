@@ -1,10 +1,10 @@
 use crate::{
-    instruction::Instr,
+    instr::Instr,
     microcode::{op_to_u16_reg, op_to_u16_reg_w, Exec, ExecRes},
-    CPU,
+    Cpu,
 };
 
-pub struct Push<'a>(pub &'a mut CPU);
+pub struct Push<'a>(pub &'a mut Cpu);
 
 impl Exec for Push<'_> {
     type FlagsData = ();
@@ -26,11 +26,16 @@ impl Exec for Push<'_> {
         cpu.pc.add(1);
         cpu.clock.add(16);
 
-        None
+        Some(ExecRes {
+            ticks: 16,
+            length: 1,
+            instr,
+            trace: None,
+        })
     }
 }
 
-pub struct Pop<'a>(pub &'a mut CPU);
+pub struct Pop<'a>(pub &'a mut Cpu);
 
 impl Exec for Pop<'_> {
     type FlagsData = ();
@@ -50,6 +55,11 @@ impl Exec for Pop<'_> {
 
         cpu.pc.add(1);
 
-        None
+        Some(ExecRes {
+            ticks: 12,
+            length: 1,
+            instr,
+            trace: None,
+        })
     }
 }

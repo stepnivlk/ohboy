@@ -1,10 +1,10 @@
 use crate::{
-    instruction::Instr,
+    instr::Instr,
     microcode::{should_jump, Exec, ExecRes},
-    CPU,
+    Cpu,
 };
 
-pub struct Jp<'a>(pub &'a mut CPU);
+pub struct Jp<'a>(pub &'a mut Cpu);
 
 impl Exec for Jp<'_> {
     type FlagsData = ();
@@ -16,7 +16,12 @@ impl Exec for Jp<'_> {
             cpu.pc.add(3);
             cpu.clock.add(12);
 
-            return None;
+            return Some(ExecRes {
+                ticks: 12,
+                length: 3,
+                instr,
+                trace: None,
+            });
         }
 
         let lsb = cpu.bus.read_byte(cpu.pc.get() + 1) as u16;
@@ -25,12 +30,18 @@ impl Exec for Jp<'_> {
         let address = (msb << 8) | lsb;
 
         cpu.pc.set(address);
+        cpu.clock.add(16);
 
-        None
+        Some(ExecRes {
+            ticks: 16,
+            length: 3,
+            instr,
+            trace: None,
+        })
     }
 }
 
-pub struct Jr<'a>(pub &'a mut CPU);
+pub struct Jr<'a>(pub &'a mut Cpu);
 
 impl Exec for Jr<'_> {
     type FlagsData = ();
@@ -39,11 +50,11 @@ impl Exec for Jr<'_> {
         let cpu = &mut self.0;
 
         let next_step = cpu.pc.get().wrapping_add(2);
+        let mut ticks = 8;
 
         if !should_jump(cpu, instr.lhs.unwrap()) {
             // do not jump
             cpu.pc.set(next_step);
-            cpu.clock.add(8);
         } else {
             let offset = cpu.read_next_byte() as i8;
 
@@ -54,9 +65,16 @@ impl Exec for Jr<'_> {
             };
 
             cpu.pc.set(next_pc);
-            cpu.clock.add(12);
+            ticks += 4;
         }
 
-        None
+        cpu.clock.add(ticks);
+
+        Some(ExecRes {
+            ticks,
+            length: 3,
+            instr,
+            trace: None,
+        })
     }
 }

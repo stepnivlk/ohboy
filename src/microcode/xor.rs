@@ -1,10 +1,10 @@
 use crate::{
-    instruction::Instr,
+    instr::Instr,
     microcode::{op_to_u8_reg, Exec, ExecRes},
-    CPU,
+    Cpu,
 };
 
-pub struct Xor<'a>(pub &'a mut CPU);
+pub struct Xor<'a>(pub &'a mut Cpu);
 
 impl Exec for Xor<'_> {
     type FlagsData = ();
@@ -25,17 +25,22 @@ impl Exec for Xor<'_> {
         cpu.pc.add(1);
         cpu.clock.add(4);
 
-        None
+        Some(ExecRes {
+            ticks: 4,
+            length: 1,
+            instr,
+            trace: None,
+        })
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{Registers, CPU};
+    use crate::{Cpu, Registers};
 
-    fn cpu(registers: Registers) -> CPU {
-        CPU::new(vec![], vec![], Some(registers))
+    fn cpu(registers: Registers) -> Cpu {
+        Cpu::new(vec![], vec![], Some(registers))
     }
 
     #[test]

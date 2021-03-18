@@ -1,10 +1,10 @@
 use crate::{
-    instruction::{Instr, Operand},
+    instr::{Instr, Operand},
     microcode::{op_to_u8_reg, Exec, ExecRes},
-    CPU,
+    Cpu,
 };
 
-pub struct Sub<'a>(pub &'a mut CPU);
+pub struct Sub<'a>(pub &'a mut Cpu);
 
 impl Exec for Sub<'_> {
     type FlagsData = ();
@@ -27,11 +27,16 @@ impl Exec for Sub<'_> {
         cpu.pc.add(1);
         cpu.clock.add(4);
 
-        None
+        Some(ExecRes {
+            ticks: 4,
+            length: 1,
+            instr,
+            trace: None,
+        })
     }
 }
 
-pub struct Cp<'a>(pub &'a mut CPU);
+pub struct Cp<'a>(pub &'a mut Cpu);
 
 impl Exec for Cp<'_> {
     type FlagsData = ();
@@ -64,11 +69,16 @@ impl Exec for Cp<'_> {
         cpu.pc.add(1);
         cpu.clock.add(4);
 
-        None
+        Some(ExecRes {
+            ticks: 4,
+            length: 1,
+            instr,
+            trace: None,
+        })
     }
 }
 
-pub struct Sbc<'a>(pub &'a mut CPU);
+pub struct Sbc<'a>(pub &'a mut Cpu);
 
 impl Exec for Sbc<'_> {
     type FlagsData = ();
@@ -93,17 +103,22 @@ impl Exec for Sbc<'_> {
         cpu.pc.add(1);
         cpu.clock.add(4);
 
-        None
+        Some(ExecRes {
+            ticks: 4,
+            length: 1,
+            instr,
+            trace: None,
+        })
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{memory_bus, Registers, CPU};
+    use crate::{memory_bus, Cpu, Registers};
 
-    fn cpu(registers: Registers) -> CPU {
-        CPU::new(
+    fn cpu(registers: Registers) -> Cpu {
+        Cpu::new(
             vec![0; memory_bus::BOOT_ROM_SIZE],
             vec![0; memory_bus::ROM_BANK_0_SIZE],
             Some(registers),

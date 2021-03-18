@@ -14,9 +14,9 @@ mod subs;
 mod xor;
 
 use crate::{
-    instruction::{CondKind, Instr, Operand},
+    instr::{CondKind, Instr, Operand},
     registers::{FlagsRegister, Reg16Kind, Reg8Kind, Registers},
-    CPU,
+    Cpu,
 };
 
 pub use adds::{Adc, Add, AddHl};
@@ -48,7 +48,7 @@ pub trait Exec {
         }
     }
 
-    fn next_flags(&self, data: Self::FlagsData) -> Option<FlagsRegister> {
+    fn next_flags(&self, _data: Self::FlagsData) -> Option<FlagsRegister> {
         None
     }
 }
@@ -60,7 +60,7 @@ pub struct ExecRes {
     pub trace: Option<(u16, u16)>,
 }
 
-pub fn should_jump(cpu: &CPU, op: Operand) -> bool {
+pub fn should_jump(cpu: &Cpu, op: Operand) -> bool {
     use Operand::*;
 
     match op {

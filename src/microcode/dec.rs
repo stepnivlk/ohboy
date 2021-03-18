@@ -1,10 +1,10 @@
 use crate::{
-    instruction::{Instr, Operand},
+    instr::{Instr, Operand},
     microcode::{Exec, ExecRes},
-    CPU,
+    Cpu,
 };
 
-pub struct Dec<'a>(pub &'a mut CPU);
+pub struct Dec<'a>(pub &'a mut Cpu);
 
 impl Exec for Dec<'_> {
     type FlagsData = ();

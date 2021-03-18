@@ -1,8 +1,8 @@
 use crate::{
-    instruction::Instr,
+    instr::Instr,
     microcode::{op_to_u16_reg, op_to_u8_reg, Exec, ExecRes},
     registers::FlagsRegister,
-    CPU,
+    Cpu,
 };
 
 type FlagsData = (u8, bool);
@@ -17,7 +17,7 @@ fn next_flags(data: FlagsData) -> Option<FlagsRegister> {
     })
 }
 
-pub struct Add<'a>(pub &'a mut CPU);
+pub struct Add<'a>(pub &'a mut Cpu);
 
 impl Exec for Add<'_> {
     type FlagsData = FlagsData;
@@ -25,8 +25,6 @@ impl Exec for Add<'_> {
     fn run(&mut self, instr: Instr) -> Option<ExecRes> {
         let val = op_to_u8_reg(&instr.rhs.unwrap(), &self.0.registers);
         let (new_val, carry) = self.0.registers.a.overflowing_add(val);
-
-        let flags = self.next_flags((new_val, carry));
 
         self.next_flags((new_val, carry))
             .map(|f| self.0.registers.f = f);
@@ -47,7 +45,7 @@ impl Exec for Add<'_> {
     }
 }
 
-pub struct Adc<'a>(pub &'a mut CPU);
+pub struct Adc<'a>(pub &'a mut Cpu);
 
 impl Exec for Adc<'_> {
     type FlagsData = FlagsData;
@@ -81,7 +79,7 @@ impl Exec for Adc<'_> {
     }
 }
 
-pub struct AddHl<'a>(pub &'a mut CPU);
+pub struct AddHl<'a>(pub &'a mut Cpu);
 
 impl Exec for AddHl<'_> {
     type FlagsData = (FlagsRegister, u16, bool);
@@ -120,10 +118,10 @@ impl Exec for AddHl<'_> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{Registers, CPU};
+    use crate::{Cpu, Registers};
 
-    fn cpu(registers: Registers) -> CPU {
-        CPU::new(vec![], vec![], Some(registers))
+    fn cpu(registers: Registers) -> Cpu {
+        Cpu::new(vec![], vec![], Some(registers))
     }
 
     #[test]

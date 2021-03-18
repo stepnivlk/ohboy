@@ -1,11 +1,11 @@
 use crate::{
-    instruction::{Instr, Operand, PostOp},
+    instr::{Instr, Operand, PostOp},
     microcode::{Exec, ExecRes},
     registers::{Reg16Kind, Reg8Kind},
-    CPU,
+    Cpu,
 };
 
-pub struct Ld<'a>(pub &'a mut CPU);
+pub struct Ld<'a>(pub &'a mut Cpu);
 
 impl Ld<'_> {
     fn rhs(&self, instr: &Instr) -> u8 {

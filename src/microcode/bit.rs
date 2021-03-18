@@ -1,11 +1,11 @@
 use crate::{
-    instruction::{Instr, Operand},
+    instr::{Instr, Operand},
     microcode::{op_to_u8_reg, Exec, ExecRes},
     registers::FlagsRegister,
-    CPU,
+    Cpu,
 };
 
-pub struct Bit<'a>(pub &'a mut CPU);
+pub struct Bit<'a>(pub &'a mut Cpu);
 
 impl Bit<'_> {
     fn bit_position(&self, instr: &Instr) -> u8 {

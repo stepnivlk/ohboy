@@ -1,4 +1,4 @@
-use crate::memory_bus::{OAM_SIZE, V_RAM_SIZE};
+use crate::mmu::{OAM_SIZE, V_RAM_SIZE};
 
 const SCREEN_SIZE: usize = 168 * 144 * 4;
 
@@ -6,8 +6,8 @@ const SCREEN_SIZE: usize = 168 * 144 * 4;
 // RN: CPU -> Bus -> GPU
 // Q? Bus -> CPU
 //        -> GPU
-pub struct GPU {
-    vram: [u8; V_RAM_SIZE],
+pub struct Gpu {
+    pub v_ram: [u8; V_RAM_SIZE],
     oam: [i8; OAM_SIZE],
     // TODO: Has to be accessible by external framebuffer
     // Push to fb every vblank
@@ -17,10 +17,10 @@ pub struct GPU {
     line: u8,
 }
 
-impl GPU {
+impl Gpu {
     pub fn new() -> Self {
         Self {
-            vram: [0; V_RAM_SIZE],
+            v_ram: [0; V_RAM_SIZE],
             oam: [0; OAM_SIZE],
             screen: [0; SCREEN_SIZE],
             modeclock: 0,

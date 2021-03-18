@@ -1,11 +1,11 @@
 use crate::{
-    instruction::Instr,
+    instr::Instr,
     microcode::{op_to_u8_reg, Exec, ExecRes},
     registers::FlagsRegister,
-    CPU,
+    Cpu,
 };
 
-pub struct Or<'a>(pub &'a mut CPU);
+pub struct Or<'a>(pub &'a mut Cpu);
 
 impl Exec for Or<'_> {
     type FlagsData = u8;
@@ -22,7 +22,12 @@ impl Exec for Or<'_> {
         cpu.pc.add(1);
         cpu.clock.add(4);
 
-        None
+        Some(ExecRes {
+            ticks: 4,
+            length: 1,
+            instr,
+            trace: None,
+        })
     }
 
     fn next_flags(&self, data: Self::FlagsData) -> Option<FlagsRegister> {
@@ -38,10 +43,10 @@ impl Exec for Or<'_> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{Registers, CPU};
+    use crate::{Cpu, Registers};
 
-    fn cpu(registers: Registers) -> CPU {
-        CPU::new(vec![], vec![], Some(registers))
+    fn cpu(registers: Registers) -> Cpu {
+        Cpu::new(vec![], vec![], Some(registers))
     }
 
     #[test]

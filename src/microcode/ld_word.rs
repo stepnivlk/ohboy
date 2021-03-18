@@ -1,11 +1,11 @@
 use crate::{
-    instruction::{Instr, Operand},
+    instr::{Instr, Operand},
     microcode::{Exec, ExecRes},
     registers::Reg16Kind,
-    CPU,
+    Cpu,
 };
 
-pub struct LdWord<'a>(pub &'a mut CPU);
+pub struct LdWord<'a>(pub &'a mut Cpu);
 
 impl Exec for LdWord<'_> {
     type FlagsData = ();

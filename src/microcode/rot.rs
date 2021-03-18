@@ -1,10 +1,10 @@
 use crate::{
-    instruction::{Instr, Operand, PostOp},
+    instr::{Instr, Operand, PostOp},
     microcode::{Exec, ExecRes},
-    CPU,
+    Cpu,
 };
 
-pub struct Rot<'a>(pub &'a mut CPU);
+pub struct Rot<'a>(pub &'a mut Cpu);
 
 impl Exec for Rot<'_> {
     type FlagsData = ();
@@ -57,7 +57,7 @@ impl Exec for Rot<'_> {
     }
 }
 
-pub struct RotA<'a>(pub &'a mut CPU);
+pub struct RotA<'a>(pub &'a mut Cpu);
 
 impl Exec for RotA<'_> {
     type FlagsData = ();
@@ -96,6 +96,11 @@ impl Exec for RotA<'_> {
         self.0.pc.add(1);
         self.0.clock.add(4);
 
-        None
+        Some(ExecRes {
+            ticks: 4,
+            length: 1,
+            instr,
+            trace: None,
+        })
     }
 }
