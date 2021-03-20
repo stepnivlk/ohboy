@@ -50,7 +50,7 @@ pub struct Mmu {
     e_ram: [u8; E_RAM_SIZE],
     w_ram: [u8; W_RAM_SIZE],
     z_ram: [u8; Z_RAM_SIZE],
-    gpu: Gpu,
+    pub gpu: Gpu,
 }
 
 impl Mmu {

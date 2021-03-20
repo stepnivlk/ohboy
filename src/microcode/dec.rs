@@ -55,6 +55,7 @@ impl Exec for Dec<'_> {
         };
 
         cpu.pc.add(1);
+        cpu.clock.add(ticks);
 
         Some(ExecRes {
             ticks,

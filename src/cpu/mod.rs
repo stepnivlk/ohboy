@@ -35,11 +35,11 @@ enum State {
     Halted,
 }
 
-pub struct Clock(u8);
+pub struct Clock(u32);
 
 impl Clock {
     pub fn add(&mut self, val: u8) {
-        self.0 = self.0.wrapping_add(val);
+        self.0 = self.0.wrapping_add(val as u32);
     }
 }
 
@@ -82,9 +82,11 @@ impl Cpu {
 
         let res = self.execute(instruction);
 
-        res.map(|r| {
-            println!("{}", r.instr);
-        });
+        let res = res.unwrap();
+
+        self.bus.gpu.step(res.ticks);
+
+        println!("{}, {}, {}", res.instr, res.ticks, self.clock.0);
     }
 
     fn execute(&mut self, instr: Instr) -> Option<microcode::ExecRes> {
