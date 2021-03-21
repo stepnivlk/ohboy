@@ -1,81 +1,124 @@
 use crate::{
-    executors::op_to_u8_reg,
-    instruction::{Instr, Operand},
-    CPU,
+    instr::{Instr, Operand},
+    microcode::{op_to_u8_reg, Exec, ExecRes},
+    Cpu,
 };
 
-pub fn sub(cpu: &mut CPU, instr: Instr) -> Option<Instr> {
-    let val = op_to_u8_reg(&instr.rhs?, &cpu.registers);
-    let a = cpu.registers.a;
+pub struct Sub<'a>(pub &'a mut Cpu);
 
-    let (new_value, carry) = a.overflowing_sub(val);
+impl Exec for Sub<'_> {
+    type FlagsData = ();
 
-    cpu.registers.f.zero = new_value == 0;
-    cpu.registers.f.subtract = true;
-    // TODO: Should add a carry?
-    cpu.registers.f.half_carry = (a & 0xF) < (val & 0xF);
-    cpu.registers.f.carry = carry;
+    fn run(&mut self, instr: Instr) -> Option<ExecRes> {
+        let cpu = &mut self.0;
 
-    cpu.registers.a = new_value;
-    cpu.pc.add(1);
+        let val = op_to_u8_reg(&instr.rhs?, &cpu.registers);
+        let a = cpu.registers.a;
 
-    Some(instr)
+        let (new_value, carry) = a.overflowing_sub(val);
+
+        cpu.registers.f.zero = new_value == 0;
+        cpu.registers.f.subtract = true;
+        // TODO: Should add a carry?
+        cpu.registers.f.half_carry = (a & 0xF) < (val & 0xF);
+        cpu.registers.f.carry = carry;
+
+        cpu.registers.a = new_value;
+        cpu.pc.add(1);
+        cpu.clock.add(4);
+
+        Some(ExecRes {
+            ticks: 4,
+            length: 1,
+            instr,
+            trace: None,
+        })
+    }
 }
 
-pub fn cp(cpu: &mut CPU, instr: Instr) -> Option<Instr> {
-    let val = match instr.rhs {
-        Some(Operand::U8) => {
-            cpu.pc.add(1);
-            cpu.read_next_byte()
-        }
-        _ => panic!(
-            "[{:X} | {}] unsupported operand {:?}",
-            instr.pos, instr.tag, instr.rhs
-        ),
-    };
+pub struct Cp<'a>(pub &'a mut Cpu);
 
-    let a = cpu.registers.a;
+impl Exec for Cp<'_> {
+    type FlagsData = ();
 
-    let (new_value, carry) = a.overflowing_sub(val);
+    fn run(&mut self, instr: Instr) -> Option<ExecRes> {
+        let cpu = &mut self.0;
 
-    cpu.registers.f.zero = new_value == 0;
-    cpu.registers.f.subtract = true;
-    // TODO: Should add a carry?
-    cpu.registers.f.half_carry = (a & 0xF) < (val & 0xF);
-    cpu.registers.f.carry = carry;
+        let val = match instr.rhs {
+            Some(Operand::U8) => {
+                cpu.pc.add(1);
+                cpu.clock.add(4);
+                cpu.read_next_byte()
+            }
+            _ => panic!(
+                "[{:X} | {}] unsupported operand {:?}",
+                instr.pos, instr.tag, instr.rhs
+            ),
+        };
 
-    cpu.pc.add(1);
+        let a = cpu.registers.a;
 
-    Some(instr)
+        let (new_value, carry) = a.overflowing_sub(val);
+
+        cpu.registers.f.zero = new_value == 0;
+        cpu.registers.f.subtract = true;
+        // TODO: Should add a carry?
+        cpu.registers.f.half_carry = (a & 0xF) < (val & 0xF);
+        cpu.registers.f.carry = carry;
+
+        cpu.pc.add(1);
+        cpu.clock.add(4);
+
+        Some(ExecRes {
+            ticks: 4,
+            length: 1,
+            instr,
+            trace: None,
+        })
+    }
 }
 
-pub fn sbc(cpu: &mut CPU, instr: Instr) -> Option<Instr> {
-    let val = op_to_u8_reg(&instr.rhs?, &cpu.registers);
-    let a = cpu.registers.a;
-    let additinal_carry = cpu.registers.f.carry as u8;
+pub struct Sbc<'a>(pub &'a mut Cpu);
 
-    let (mid_value, mid_carry) = a.overflowing_sub(val);
-    let (new_value, carry) = mid_value.overflowing_sub(additinal_carry);
+impl Exec for Sbc<'_> {
+    type FlagsData = ();
 
-    cpu.registers.f.zero = cpu.registers.a == 0;
-    cpu.registers.f.subtract = true;
-    cpu.registers.f.half_carry =
-        (a & 0xF) < (val & 0xF) + (cpu.registers.f.carry as u8);
-    cpu.registers.f.carry = mid_carry || carry;
+    fn run(&mut self, instr: Instr) -> Option<ExecRes> {
+        let cpu = &mut self.0;
 
-    cpu.registers.a = new_value;
-    cpu.pc.add(1);
+        let val = op_to_u8_reg(&instr.rhs?, &cpu.registers);
+        let a = cpu.registers.a;
+        let additinal_carry = cpu.registers.f.carry as u8;
 
-    Some(instr)
+        let (mid_value, mid_carry) = a.overflowing_sub(val);
+        let (new_value, carry) = mid_value.overflowing_sub(additinal_carry);
+
+        cpu.registers.f.zero = cpu.registers.a == 0;
+        cpu.registers.f.subtract = true;
+        cpu.registers.f.half_carry =
+            (a & 0xF) < (val & 0xF) + (cpu.registers.f.carry as u8);
+        cpu.registers.f.carry = mid_carry || carry;
+
+        cpu.registers.a = new_value;
+        cpu.pc.add(1);
+        cpu.clock.add(4);
+
+        Some(ExecRes {
+            ticks: 4,
+            length: 1,
+            instr,
+            trace: None,
+        })
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{memory_bus, Registers, CPU};
+    use crate::{memory_bus, Cpu, Registers};
 
-    fn cpu(registers: Registers) -> CPU {
-        CPU::new(
+    fn cpu(registers: Registers) -> Cpu {
+        Cpu::new(
             vec![0; memory_bus::BOOT_ROM_SIZE],
             vec![0; memory_bus::ROM_BANK_0_SIZE],
             Some(registers),

@@ -1,38 +1,65 @@
 use crate::{
-    executors::{op_to_u16_reg, op_to_u16_reg_w},
-    instruction::Instr,
-    CPU,
+    instr::Instr,
+    microcode::{op_to_u16_reg, op_to_u16_reg_w, Exec, ExecRes},
+    Cpu,
 };
 
-pub fn push(cpu: &mut CPU, instr: Instr) -> Option<Instr> {
-    let val = op_to_u16_reg(&instr.rhs?, &cpu.registers);
+pub struct Push<'a>(pub &'a mut Cpu);
 
-    let hi = ((val & 0xFF00) >> 8) as u8;
-    let lo = ((val & 0xFF) >> 8) as u8;
+impl Exec for Push<'_> {
+    type FlagsData = ();
 
-    cpu.sp = cpu.sp.wrapping_sub(1);
-    cpu.bus.write_byte(cpu.sp, hi);
+    fn run(&mut self, instr: Instr) -> Option<ExecRes> {
+        let cpu = &mut self.0;
 
-    cpu.sp = cpu.sp.wrapping_sub(1);
-    cpu.bus.write_byte(cpu.sp, lo);
+        let val = op_to_u16_reg(&instr.rhs?, &cpu.registers);
 
-    cpu.pc.add(1);
+        let hi = ((val & 0xFF00) >> 8) as u8;
+        let lo = ((val & 0xFF) >> 8) as u8;
 
-    Some(instr)
+        cpu.sp = cpu.sp.wrapping_sub(1);
+        cpu.bus.write_byte(cpu.sp, hi);
+
+        cpu.sp = cpu.sp.wrapping_sub(1);
+        cpu.bus.write_byte(cpu.sp, lo);
+
+        cpu.pc.add(1);
+        cpu.clock.add(16);
+
+        Some(ExecRes {
+            ticks: 16,
+            length: 1,
+            instr,
+            trace: None,
+        })
+    }
 }
 
-pub fn pop(cpu: &mut CPU, instr: Instr) -> Option<Instr> {
-    let lo = cpu.bus.read_byte(cpu.sp) as u16;
-    cpu.sp = cpu.sp.wrapping_add(1);
+pub struct Pop<'a>(pub &'a mut Cpu);
 
-    let hi = cpu.bus.read_byte(cpu.sp) as u16;
-    cpu.sp = cpu.sp.wrapping_add(1);
+impl Exec for Pop<'_> {
+    type FlagsData = ();
 
-    let data = (hi << 8) | lo;
+    fn run(&mut self, instr: Instr) -> Option<ExecRes> {
+        let cpu = &mut self.0;
 
-    op_to_u16_reg_w(&instr.rhs?, &mut cpu.registers, data);
+        let lo = cpu.bus.read_byte(cpu.sp) as u16;
+        cpu.sp = cpu.sp.wrapping_add(1);
 
-    cpu.pc.add(1);
+        let hi = cpu.bus.read_byte(cpu.sp) as u16;
+        cpu.sp = cpu.sp.wrapping_add(1);
 
-    Some(instr)
+        let data = (hi << 8) | lo;
+
+        op_to_u16_reg_w(&instr.rhs?, &mut cpu.registers, data);
+
+        cpu.pc.add(1);
+
+        Some(ExecRes {
+            ticks: 12,
+            length: 1,
+            instr,
+            trace: None,
+        })
+    }
 }

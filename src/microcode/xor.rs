@@ -1,28 +1,46 @@
-use crate::{executors::op_to_u8_reg, instruction::Instr, CPU};
+use crate::{
+    instr::Instr,
+    microcode::{op_to_u8_reg, Exec, ExecRes},
+    Cpu,
+};
 
-pub fn xor(cpu: &mut CPU, instr: Instr) -> Option<Instr> {
-    let val = op_to_u8_reg(&instr.rhs?, &cpu.registers);
+pub struct Xor<'a>(pub &'a mut Cpu);
 
-    let new_value = cpu.registers.a ^ val;
+impl Exec for Xor<'_> {
+    type FlagsData = ();
 
-    cpu.registers.f.zero = new_value == 0;
-    cpu.registers.f.subtract = false;
-    cpu.registers.f.half_carry = false;
-    cpu.registers.f.carry = false;
+    fn run(&mut self, instr: Instr) -> Option<ExecRes> {
+        let cpu = &mut self.0;
 
-    cpu.registers.a = new_value;
-    cpu.pc.add(1);
+        let val = op_to_u8_reg(&instr.rhs?, &cpu.registers);
 
-    Some(instr)
+        let new_value = cpu.registers.a ^ val;
+
+        cpu.registers.f.zero = new_value == 0;
+        cpu.registers.f.subtract = false;
+        cpu.registers.f.half_carry = false;
+        cpu.registers.f.carry = false;
+
+        cpu.registers.a = new_value;
+        cpu.pc.add(1);
+        cpu.clock.add(4);
+
+        Some(ExecRes {
+            ticks: 4,
+            length: 1,
+            instr,
+            trace: None,
+        })
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{Registers, CPU};
+    use crate::{Cpu, Registers};
 
-    fn cpu(registers: Registers) -> CPU {
-        CPU::new(vec![], vec![], Some(registers))
+    fn cpu(registers: Registers) -> Cpu {
+        Cpu::new(vec![], vec![], Some(registers))
     }
 
     #[test]
